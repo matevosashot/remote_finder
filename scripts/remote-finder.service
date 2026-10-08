@@ -1,0 +1,11 @@
+[Unit]
+Description=Remote Finder (Finder-style web file manager, localhost only)
+
+[Service]
+WorkingDirectory=%h/remote_finder
+ExecStart=%h/remote_finder/run.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Cpath d=%27M14 4h26l14 14v40a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z%27 fill=%27%23eef0f3%27 stroke=%27%238a8f98%27 stroke-width=%273%27/%3E%3C/svg%3E">
+<title>Editor</title>
+<link rel="stylesheet" href="/vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="/vendor/codemirror/material-darker.css">
+<link rel="stylesheet" href="/vendor/codemirror/addon/dialog/dialog.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/pages.css">
+<script src="/vendor/codemirror/codemirror.js"></script>
+<script src="/vendor/codemirror/addon/mode/overlay.js"></script>
+<script src="/vendor/codemirror/addon/mode/simple.js"></script>
+<script src="/vendor/codemirror/addon/mode/multiplex.js"></script>
+<script src="/vendor/codemirror/addon/search/searchcursor.js"></script>
+<script src="/vendor/codemirror/addon/search/search.js"></script>
+<script src="/vendor/codemirror/addon/dialog/dialog.js"></script>
+<script src="/vendor/codemirror/addon/edit/matchbrackets.js"></script>
+<script src="/vendor/codemirror/addon/edit/closebrackets.js"></script>
+<script src="/vendor/codemirror/addon/selection/active-line.js"></script>
+<script src="/vendor/codemirror/mode/xml/xml.js"></script>
+<script src="/vendor/codemirror/mode/javascript/javascript.js"></script>
+<script src="/vendor/codemirror/mode/css/css.js"></script>
+<script src="/vendor/codemirror/mode/htmlmixed/htmlmixed.js"></script>
+<script src="/vendor/codemirror/mode/markdown/markdown.js"></script>
+<script src="/vendor/codemirror/mode/gfm/gfm.js"></script>
+<script src="/vendor/codemirror/mode/python/python.js"></script>
+<script src="/vendor/codemirror/mode/yaml/yaml.js"></script>
+<script src="/vendor/codemirror/mode/shell/shell.js"></script>
+<script src="/vendor/codemirror/mode/sql/sql.js"></script>
+<script src="/vendor/codemirror/mode/clike/clike.js"></script>
+<script src="/vendor/codemirror/mode/go/go.js"></script>
+<script src="/vendor/codemirror/mode/rust/rust.js"></script>
+<script src="/vendor/codemirror/mode/toml/toml.js"></script>
+<script src="/vendor/codemirror/mode/dockerfile/dockerfile.js"></script>
+<script src="/vendor/codemirror/mode/properties/properties.js"></script>
+<script src="/vendor/codemirror/mode/diff/diff.js"></script>
+<script src="/vendor/codemirror/mode/lua/lua.js"></script>
+<script src="/vendor/codemirror/mode/r/r.js"></script>
+<script src="/vendor/codemirror/mode/julia/julia.js"></script>
+<script src="/vendor/codemirror/mode/perl/perl.js"></script>
+<script src="/vendor/codemirror/mode/ruby/ruby.js"></script>
+<script src="/vendor/codemirror/mode/nginx/nginx.js"></script>
+<script src="/vendor/codemirror/mode/cmake/cmake.js"></script>
+</head>
+<body class="page">
+<header class="page-bar">
+  <div class="page-title"><span id="dirty" class="dirty-dot" hidden>●</span><span id="name"></span><span id="meta" class="muted"></span></div>
+  <div class="spacer"></div>
+  <span id="msg" class="save-msg"></span>
+  <div class="page-actions" id="actions"></div>
+</header>
+<div id="path" class="page-path"></div>
+<main class="editor-host" id="host"></main>
+<script type="module" src="/js/editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Cpath d=%27M14 4h26l14 14v40a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z%27 fill=%27%23eef0f3%27 stroke=%27%238a8f98%27 stroke-width=%273%27/%3E%3C/svg%3E">
+<title>Head / Tail</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/pages.css">
+</head>
+<body class="page">
+<header class="page-bar">
+  <div class="page-title"><span id="name"></span><span id="meta" class="muted"></span></div>
+  <div class="spacer"></div>
+  <div class="page-actions" id="actions"></div>
+</header>
+<div id="path" class="page-path"></div>
+<form class="tail-controls" id="form" autocomplete="off">
+  <span class="group">
+    <select id="mode" title="What to show">
+      <option value="head">Head (first lines)</option>
+      <option value="tail">Tail (last lines)</option>
+      <option value="line">From line…</option>
+      <option value="byte">From byte offset…</option>
+    </select>
+    <label><input type="number" id="n" min="1" max="1000000" value="200" title="Number of lines"> lines</label>
+    <label id="start-wrap" hidden><span id="start-label">at</span> <input type="number" id="start" min="0" value="1"></label>
+  </span>
+  <span class="group">
+    <input type="text" class="grep" id="grep" placeholder="grep regex (optional)" spellcheck="false">
+    <label title="Case-insensitive"><input type="checkbox" id="icase"> Aa</label>
+    <label title="Show lines that do NOT match"><input type="checkbox" id="invert"> invert</label>
+    <select id="grepmode" title="Filter on the server or just highlight">
+      <option value="filter">only matching</option>
+      <option value="highlight">highlight</option>
+    </select>
+  </span>
+  <span class="group">
+    <label title="Stream new lines as the file grows (tail -f)"><input type="checkbox" id="follow"> follow</label>
+    <label><input type="checkbox" id="wrap"> wrap</label>
+  </span>
+  <button class="btn primary small" type="submit">Show</button>
+  <button class="btn small" type="button" id="dl" title="Download the lines shown">Save shown</button>
+</form>
+<div class="tail-status" id="status"></div>
+<main class="tail-out" id="out"><div class="tail-lines"><div class="tail-gutter" id="gutter"></div><div class="tail-text" id="text"></div></div></main>
+<script type="module" src="/js/tail.js"></script>
+</body>
+</html>
