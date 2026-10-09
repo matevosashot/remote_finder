@@ -190,7 +190,9 @@ function wire() {
 
 async function main() {
   buildShell();
-  const [home] = await Promise.all([get("/api/home").catch(() => ({ home: "/", user: "", host: "" })), loadSettings()]);
+  // the server inlines home and settings into the page (window.RF_BOOT), so a new tab skips those requests
+  const [home] = await Promise.all([
+    window.RF_BOOT?.home || get("/api/home").catch(() => ({ home: "/", user: "", host: "" })), loadSettings()]);
   Object.assign(state, home);
   get("/api/disks").then((d) => { state.disks = d; emit("disks"); updateStatus(); }).catch(() => {});
   initSidebar(el.sidebar);

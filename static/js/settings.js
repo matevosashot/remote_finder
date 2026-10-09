@@ -9,7 +9,7 @@ const AFFECTS_ITEMS = ["showHidden", "foldersFirst", "sort", "view"];
 
 export async function loadSettings() {
   try {
-    const s = await get("/api/settings");
+    const s = window.RF_BOOT?.settings || await get("/api/settings");
     for (const k of KEYS) if (s[k] !== undefined) state[k] = s[k];
   } catch {}
 }

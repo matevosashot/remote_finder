@@ -164,9 +164,15 @@ images.
 Frontend libraries are vendored in `static/vendor` (xterm.js, highlight.js, marked, DOMPurify,
 CodeMirror 5, d3); `scripts/fetch_vendor.sh` re-downloads the pinned versions.
 
+There is no build step. The server rewrites each page as it serves it. Every asset URL gets a content hash
+(`?v=…`), and an import map points each module import at its hashed URL. Browsers cache those files
+for good, while the page itself is never cached, so an edited file loads fresh on the next reload.
+The page also lists all of its modules up front, so a first load fetches them in parallel.
+
 ```
 remote_finder/          FastAPI backend
   main.py               app assembly, static files, security middleware
+  assets.py             content-hashed asset URLs, import map and preloads for the pages
   security.py           Host/Origin/CSRF-header checks, headers for serving user files
   config.py             app name, config/cache dirs, CSRF header name
   fsutil.py, models.py  shared filesystem helpers and request bodies
