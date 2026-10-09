@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate the README screenshots in docs/screenshots from a made-up demo folder.
 
-    .venv/bin/python scripts/make_screenshots.py [--root /tmp/demo] [--out docs/screenshots]
+    .venv/bin/python scripts/make_screenshots.py [--root /tmp/demo] [--out docs/screenshots] [--only NAME...]
 
 Builds a fake home folder (a speech-model project, a dataset, photos...), starts a private
 server with HOME pointed at it, and drives the system Chrome with Playwright. The host name
@@ -262,6 +262,27 @@ def sparse(path: Path, size: int) -> None:
         f.truncate(size)  # big-looking checkpoint that takes no disk space
 
 
+def add_disk_hogs(root: Path) -> None:
+    """Big downloads, caches and dataset shards for the disk usage shot (sparse: no real disk space)."""
+    hogs = {
+        "Downloads/ubuntu-24.04.1-desktop-amd64.iso": 6_114_656_256,
+        "Downloads/cuda_12.4.1_550.54.15_linux.run": 4_389_213_532,
+        "datasets/noisy-speech-full/shards/train-00000-of-00003.tar": 1_610_612_736,
+        "datasets/noisy-speech-full/shards/train-00001-of-00003.tar": 1_610_612_736,
+        "datasets/noisy-speech-full/shards/train-00002-of-00003.tar": 1_288_490_188,
+        "datasets/noisy-speech-full/shards/dev-00000-of-00001.tar": 402_653_184,
+        ".cache/huggingface/hub/models--openai--whisper-small/blobs/model.safetensors": 967_102_729,
+        ".cache/pip/http-v2/wheels/torch-2.5.1-cp310-cp310-linux_x86_64.whl": 906_354_624,
+        ".local/share/Trash/files/old-checkpoints.tar": 2_254_857_830,
+        "projects/web-dashboard/node_modules/.cache/webpack/default-production.pack": 312_475_648,
+    }
+    for rel, size in hogs.items():
+        path = root / rel
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            sparse(path, size)
+
+
 def build_demo(root: Path) -> None:
     if root.exists():
         if not (root / MARKER).exists():
@@ -332,6 +353,7 @@ def build_demo(root: Path) -> None:
     settings = {"bookmarks": [str(root), str(root / "projects"), str(root / "datasets"), str(photos), "/"],
                 "view": "list", "iconSize": 72, "showHidden": False, "sort": {"key": "name", "dir": 1},
                 "preview": False, "foldersFirst": True}
+    add_disk_hogs(root)
     (root / ".config" / "remote-finder").mkdir(parents=True)
     (root / ".config" / "remote-finder" / "settings.json").write_text(json.dumps(settings, indent=2))
     set_times(root)
@@ -377,8 +399,10 @@ def start_server(root: Path) -> tuple[subprocess.Popen, str]:
     sys.exit("server did not start")
 
 
-def shoot(root: Path, out: Path, base: str) -> None:
+def shoot(root: Path, out: Path, base: str, only: set[str] | None = None) -> None:
     from playwright.sync_api import expect, sync_playwright
+
+    want = lambda name: not only or name in only
 
     chrome = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
     proj = root / "projects" / "speech-denoiser"
@@ -426,123 +450,158 @@ def shoot(root: Path, out: Path, base: str) -> None:
             print("wrote", out / name)
 
         # 1. list view with an expanded folder and the preview pane
-        page = new_page()
-        open_folder(page, proj)
-        item(page, proj / "checkpoints").locator(".disclosure").click()
-        page.click('[data-btn="preview"]')
-        item(page, proj / "train.py").click()
-        expect(page.locator("aside.preview-pane .hljs")).to_be_visible()
-        save(page, "list-preview.png")
-        page.click('[data-btn="preview"]')  # settings are shared by the later shots
-        page.context.close()
+        if want("list-preview"):
+            page = new_page()
+            open_folder(page, proj)
+            item(page, proj / "checkpoints").locator(".disclosure").click()
+            page.click('[data-btn="preview"]')
+            item(page, proj / "train.py").click()
+            expect(page.locator("aside.preview-pane .hljs")).to_be_visible()
+            save(page, "list-preview.png")
+            page.click('[data-btn="preview"]')  # settings are shared by the later shots
+            page.context.close()
 
         # 2. icon view with thumbnails
-        page = new_page()
-        open_folder(page, root / "photos", "icons")
-        page.evaluate("() => { const s = document.querySelector('.size-slider'); s.value = 150; "
-                      "s.dispatchEvent(new Event('input')); }")
-        item(page, root / "photos" / "evening-ridge.jpg").click()
-        item(page, root / "photos" / "night-pass.jpg").click(modifiers=["Control"])
-        wait_thumbs(page)
-        save(page, "icons.png")
-        page.evaluate("() => { const s = document.querySelector('.size-slider'); s.value = 72; "
-                      "s.dispatchEvent(new Event('input')); }")
-        page.context.close()
+        if want("icons"):
+            page = new_page()
+            open_folder(page, root / "photos", "icons")
+            page.evaluate("() => { const s = document.querySelector('.size-slider'); s.value = 150; "
+                          "s.dispatchEvent(new Event('input')); }")
+            item(page, root / "photos" / "evening-ridge.jpg").click()
+            item(page, root / "photos" / "night-pass.jpg").click(modifiers=["Control"])
+            wait_thumbs(page)
+            save(page, "icons.png")
+            page.evaluate("() => { const s = document.querySelector('.size-slider'); s.value = 72; "
+                          "s.dispatchEvent(new Event('input')); }")
+            page.context.close()
 
         # 3. columns view with a Markdown preview
-        page = new_page()
-        open_folder(page, proj, "columns")
-        page.locator(f'.column.current [data-path="{proj / "README.md"}"]').click()
-        expect(page.locator(".column-tail .markdown-body h1")).to_be_visible()
-        save(page, "columns.png")
-        page.context.close()
+        if want("columns"):
+            page = new_page()
+            open_folder(page, proj, "columns")
+            page.locator(f'.column.current [data-path="{proj / "README.md"}"]').click()
+            expect(page.locator(".column-tail .markdown-body h1")).to_be_visible()
+            save(page, "columns.png")
+            page.context.close()
 
         # 4. context menu with the Compress As submenu
-        page = new_page()
-        open_folder(page, proj)
-        item(page, proj / "data").click()
-        item(page, proj / "logs").click(modifiers=["Shift"])
-        item(page, proj / "logs").click(button="right")
-        page.locator(".menu-item", has_text="Compress As").hover()
-        expect(page.locator(".submenu")).to_be_visible()
-        page.locator(".submenu .menu-item").first.hover()
-        page.screenshot(path=str(out / "context-menu.png"))
-        print("wrote", out / "context-menu.png")
-        page.keyboard.press("Escape")
-        page.context.close()
+        if want("context-menu"):
+            page = new_page()
+            open_folder(page, proj)
+            item(page, proj / "data").click()
+            item(page, proj / "logs").click(modifiers=["Shift"])
+            item(page, proj / "logs").click(button="right")
+            page.locator(".menu-item", has_text="Compress As").hover()
+            expect(page.locator(".submenu")).to_be_visible()
+            page.locator(".submenu .menu-item").first.hover()
+            page.screenshot(path=str(out / "context-menu.png"))
+            print("wrote", out / "context-menu.png")
+            page.keyboard.press("Escape")
+            page.context.close()
 
         # 5. Quick Look on a photo
-        page = new_page()
-        open_folder(page, root / "photos")
-        item(page, root / "photos" / "sunset-valley.jpg").click()
-        page.keyboard.press(" ")
-        page.wait_for_function("() => { const i = document.querySelector('.ql-overlay img'); return i && i.complete && i.naturalWidth; }")
-        save(page, "quick-look.png")
-        page.context.close()
+        if want("quick-look"):
+            page = new_page()
+            open_folder(page, root / "photos")
+            item(page, root / "photos" / "sunset-valley.jpg").click()
+            page.keyboard.press(" ")
+            page.wait_for_function("() => { const i = document.querySelector('.ql-overlay img'); return i && i.complete && i.naturalWidth; }")
+            save(page, "quick-look.png")
+            page.context.close()
 
         # 6. head/tail tool: grep a 25 MB log
-        page = new_page()
-        log = proj / "logs" / "train.log"
-        page.goto(f"{base}/tail.html?path={quote(str(log), safe='/')}&mode=head&n=200&grep=WARNING|ERROR&grepmode=filter")
-        expect(page.locator("#gutter")).not_to_be_empty()
-        save(page, "head-tail.png")
-        page.context.close()
+        if want("head-tail"):
+            page = new_page()
+            log = proj / "logs" / "train.log"
+            page.goto(f"{base}/tail.html?path={quote(str(log), safe='/')}&mode=head&n=200&grep=WARNING|ERROR&grepmode=filter")
+            expect(page.locator("#gutter")).not_to_be_empty()
+            save(page, "head-tail.png")
+            page.context.close()
 
         # 7. notebook in the viewer
-        page = new_page()
-        page.goto(f"{base}/viewer.html?path={quote(str(proj / 'notebooks' / 'analysis.ipynb'), safe='/')}")
-        page.wait_for_function("() => { const i = document.querySelector('.notebook img'); return i && i.complete; }")
-        save(page, "viewer-notebook.png")
-        page.context.close()
+        if want("viewer-notebook"):
+            page = new_page()
+            page.goto(f"{base}/viewer.html?path={quote(str(proj / 'notebooks' / 'analysis.ipynb'), safe='/')}")
+            page.wait_for_function("() => { const i = document.querySelector('.notebook img'); return i && i.complete; }")
+            save(page, "viewer-notebook.png")
+            page.context.close()
 
         # 8. editor
-        page = new_page()
-        page.goto(f"{base}/editor.html?path={quote(str(proj / 'config.yaml'), safe='/')}")
-        page.locator(".CodeMirror").click()
-        page.keyboard.press("Control+End")
-        page.keyboard.type("  warmup_steps: 2000\n")
-        expect(page.locator("#dirty")).to_be_visible()
-        save(page, "editor.png")
-        page.context.close()
+        if want("editor"):
+            page = new_page()
+            page.goto(f"{base}/editor.html?path={quote(str(proj / 'config.yaml'), safe='/')}")
+            page.locator(".CodeMirror").click()
+            page.keyboard.press("Control+End")
+            page.keyboard.type("  warmup_steps: 2000\n")
+            expect(page.locator("#dirty")).to_be_visible()
+            save(page, "editor.png")
+            page.context.close()
 
         # 9. terminal docked on the right
-        page = new_page()
-        open_folder(page, proj)
-        page.keyboard.press("Control+Backquote")
-        page.click('.term-bar [title="Move to side / bottom"]')
-        page.wait_for_timeout(1200)
-        page.locator(".xterm").click()  # the dock button took the focus
-        page.keyboard.type("clear; ls -lh checkpoints | tail -n +2 | awk '{print $5, $9}'; tail -n 3 logs/train.log | cut -c1-70\n")
-        expect(page.locator(".xterm-rows")).to_contain_text("epoch_040.pt")
-        item(page, proj / "logs").click()
-        save(page, "terminal.png")
-        page.context.close()
+        if want("terminal"):
+            page = new_page()
+            open_folder(page, proj)
+            page.keyboard.press("Control+Backquote")
+            page.click('.term-bar [title="Move to side / bottom"]')
+            page.wait_for_timeout(1200)
+            page.locator(".xterm").click()  # the dock button took the focus
+            page.keyboard.type("clear; ls -lh checkpoints | tail -n +2 | awk '{print $5, $9}'; tail -n 3 logs/train.log | cut -c1-70\n")
+            expect(page.locator(".xterm-rows")).to_contain_text("epoch_040.pt")
+            item(page, proj / "logs").click()
+            save(page, "terminal.png")
+            page.context.close()
 
         # 10. Ctrl+P quick open
-        page = new_page()
-        open_folder(page, root)
-        page.keyboard.press("Control+p")
-        expect(page.locator(".qo-input")).to_be_focused()
-        page.keyboard.type("log")
-        expect(page.locator(".qo-item").nth(2)).to_be_visible()  # several fuzzy matches
-        page.wait_for_timeout(300)
-        page.screenshot(path=str(out / "quick-open.png"))
-        print("wrote", out / "quick-open.png")
-        page.context.close()
+        if want("quick-open"):
+            page = new_page()
+            open_folder(page, root)
+            page.keyboard.press("Control+p")
+            expect(page.locator(".qo-input")).to_be_focused()
+            page.keyboard.type("log")
+            expect(page.locator(".qo-item").nth(2)).to_be_visible()  # several fuzzy matches
+            page.wait_for_timeout(300)
+            page.screenshot(path=str(out / "quick-open.png"))
+            print("wrote", out / "quick-open.png")
+            page.context.close()
 
         # 11. gallery view, dark appearance
-        page = new_page(dark=True)
-        open_folder(page, root / "photos", "gallery")
-        item(page, root / "photos" / "fjord-morning.jpg").click()
-        wait_thumbs(page)
-        save(page, "gallery-dark.png")
-        page.context.close()
+        if want("gallery-dark"):
+            page = new_page(dark=True)
+            open_folder(page, root / "photos", "gallery")
+            item(page, root / "photos" / "fjord-morning.jpg").click()
+            wait_thumbs(page)
+            save(page, "gallery-dark.png")
+            page.context.close()
+
+        # 12. disk usage, by apparent size (the demo's big files are sparse), with three items archived
+        if want("disk-usage"):
+            add_disk_hogs(root)   # also when reusing a demo folder made before they existed
+            (root / ".config" / "remote-finder" / "archive.json").unlink(missing_ok=True)  # from an earlier run
+            page = new_page()
+            page.goto(f"{base}/du.html?path={quote(str(root), safe='/')}")
+            expect(page.locator("#status")).to_contain_text("Scanned", timeout=30000)
+            page.locator("#metric [data-metric=apparent]").click()
+            row = lambda path: page.locator(f'.du-list .row[data-path="{path}"]')
+            for folder in (root / "Downloads", root / "datasets"):
+                row(folder).locator(".disclosure").click()
+                expect(row(folder).locator(".disclosure.open")).to_be_visible()
+            row(root / "Downloads" / "ubuntu-24.04.1-desktop-amd64.iso").click()
+            row(root / "Downloads" / "cuda_12.4.1_550.54.15_linux.run").click(modifiers=["Control"])
+            row(root / ".local").click(modifiers=["Control"])
+            page.keyboard.press("Delete")
+            expect(page.locator(".du-archive-head .title")).to_contain_text("3 items")
+            page.locator(".toast-x").click()
+            row(root / "datasets" / "noisy-speech-full").click()
+            save(page, "disk-usage.png")
+            page.context.close()
 
         browser.close()
 
 
-def optimize(out: Path) -> None:
+def optimize(out: Path, only: set[str] | None = None) -> None:
     for png in sorted(out.glob("*.png")):
+        if only and png.stem not in only:
+            continue
         Image.open(png).save(png, optimize=True)
 
 
@@ -550,15 +609,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", default="/tmp/demo", type=Path, help="where to build the demo folder")
     ap.add_argument("--out", default=ROOT / "docs" / "screenshots", type=Path)
+    ap.add_argument("--only", nargs="+", metavar="NAME",
+                    help="retake just these screenshots (e.g. disk-usage), reusing an existing demo folder")
     args = ap.parse_args()
-    build_demo(args.root)
+    if not (args.only and (args.root / MARKER).exists()):
+        build_demo(args.root)
     proc, base = start_server(args.root)
     try:
-        shoot(args.root, args.out, base)
+        shoot(args.root, args.out, base, set(args.only or ()))
     finally:
         proc.terminate()
         proc.wait(timeout=10)
-    optimize(args.out)
+    optimize(args.out, set(args.only or ()))
 
 
 if __name__ == "__main__":

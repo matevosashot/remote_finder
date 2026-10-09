@@ -26,3 +26,4 @@ for m in python javascript css xml htmlmixed markdown gfm yaml shell sql clike g
          dockerfile properties diff lua r julia perl ruby nginx cmake commonlisp; do
   get $CM/mode/$m/$m.js codemirror/mode/$m/$m.js
 done
+get $J/d3@7.9.0/dist/d3.min.js                         d3/d3.min.js

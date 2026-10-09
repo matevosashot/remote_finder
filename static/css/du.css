@@ -1,0 +1,70 @@
+/* Disk usage page: tree list on the left, rings / treemap on the right, archive drawer at the bottom. */
+.du-depth { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.du-depth select { height: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.page .btn:disabled { opacity: .45; }
+.tail-status .scan-now { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: var(--mono); }
+
+.du-main { flex: 1; min-height: 0; display: flex; }
+.du-list { flex: 0 0 var(--du-list-w, 46%); min-width: 300px; display: flex; flex-direction: column; outline: none; background: var(--bg); }
+.du-split { flex: 0 0 5px; cursor: col-resize; background: var(--border-soft); }
+.du-split:hover, .du-split.drag { background: var(--accent); }
+.du-chart { flex: 1; min-width: 200px; display: flex; flex-direction: column; background: var(--bg); position: relative; }
+.du-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.du-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.du-chart-bar { display: flex; justify-content: center; padding: 6px; border-top: 1px solid var(--border-soft); background: var(--toolbar); }
+.du-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+
+/* tree list */
+.du-list .list-scroll { flex: 1; overflow: auto; position: relative; }
+.du-list .col-name { flex: 1 1 260px; min-width: 150px; }
+.du-list .col-size { flex: 0 0 150px; }
+.du-list .row .col-size { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.du-list .col-items { flex: 0 0 104px; text-align: right; }
+.du-list .col-mtime { flex: 0 0 96px; text-align: right; }
+.du-list .row .col-items { color: var(--muted); }
+.du-list .row.root .name { font-weight: 600; }
+.du-list .row.extra .name { color: var(--muted); font-style: italic; }
+.du-list .row.hover:not(.sel) { background: var(--hover); }
+.du-list .list-header .col { padding: 5px 8px; }
+.du-list .list-header .col-size, .du-list .list-header .col-items, .du-list .list-header .col-mtime { text-align: right; }
+/* thin track like the sidebar disk bars; the fill is the item's chart color */
+.du-bar { flex: none; width: 52px; height: 6px; margin-right: auto; border-radius: 3px; background: var(--border); overflow: hidden; }
+.du-bar > div { height: 100%; border-radius: 3px; }
+.view-host:focus-within .row.sel .du-bar { background: rgba(255,255,255,.3); }
+.view-host:focus-within .row.sel .du-bar > div { background: var(--accent-text) !important; }
+.du-badge { flex: none; font-size: 10.5px; padding: 0 6px; border-radius: 8px; background: var(--hover); color: var(--muted); line-height: 16px; }
+.du-badge.action { cursor: pointer; color: var(--accent); }
+.du-badge.action:hover { background: var(--drop); }
+.row.sel .du-badge { background: rgba(255,255,255,.22); color: inherit; }
+.du-spin { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: du-spin .8s linear infinite; vertical-align: -1px; opacity: .7; }
+@keyframes du-spin { to { transform: rotate(360deg); } }
+
+/* charts */
+.du-seg { stroke: var(--bg); stroke-width: 1; cursor: default; }
+.du-seg.hover { filter: brightness(1.08); }
+.du-seg.sel { stroke: var(--accent); stroke-width: 2.5; paint-order: stroke; }
+.du-center { fill: var(--bg); stroke: var(--border); cursor: pointer; }
+.du-center-label { fill: var(--text); font-size: 13px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+.du-center-sub { fill: var(--muted); font-size: 11px; text-anchor: middle; pointer-events: none; }
+.du-cell { stroke: var(--bg); stroke-width: 1; }
+.du-label { font-size: 11px; fill: #1d1d1f; pointer-events: none; }
+.du-tip { position: fixed; z-index: 950; pointer-events: none; background: var(--bg); box-shadow: var(--shadow); border-radius: 8px; padding: 7px 10px; font-size: 12px; max-width: 460px; }
+.du-tip b { display: block; word-break: break-all; font-weight: 600; }
+.du-tip .muted { font-size: 11.5px; }
+
+/* archive drawer */
+.du-archive { flex: none; border-top: 1px solid var(--border); background: var(--toolbar); display: flex; flex-direction: column; max-height: 42vh; }
+.du-archive-head { display: flex; align-items: center; gap: 8px; padding: 5px 14px; flex-wrap: wrap; font-size: 12.5px; }
+.du-archive-head .title { font-weight: 650; cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; }
+.du-archive-head .title .disclosure { width: 12px; }
+.du-archive-head label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.du-archive-list { overflow: auto; background: var(--bg); border-top: 1px solid var(--border-soft); min-height: 60px; font-size: 12.5px; }
+.du-archive-list .arow { display: flex; align-items: center; gap: 10px; padding: 2px 14px; min-height: 24px; }
+.du-archive-list .arow:nth-child(even) { background: var(--bg-alt); }
+.du-archive-list .apath { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; user-select: text; }
+.du-archive-list .apath.gone { text-decoration: line-through; color: var(--muted); }
+.du-archive-list .asize { flex: 0 0 80px; text-align: right; color: var(--muted); }
+.du-archive-list .nested { color: var(--muted); font-size: 11px; }
+.du-archive-list .empty { padding: 14px; color: var(--muted); text-align: center; }
+.du-cmd { width: 100%; min-height: 220px; flex: 1; font: 12px/1.5 var(--mono); border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: var(--code-bg); color: var(--text); resize: vertical; white-space: pre; }
+.dialog.du-cmd-dialog { width: 760px; }

@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
 
-from . import archive_api, fs_api, jobs, ops_api, search, settings, terminal, text_api, thumbs
+from . import archive_api, du_api, fs_api, jobs, ops_api, search, settings, terminal, text_api, thumbs
 from .config import APP_NAME
 from .security import GuardMiddleware
 
 STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 
 api = FastAPI(title=APP_NAME, docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
-for module in (fs_api, ops_api, thumbs, text_api, archive_api, jobs, search, settings, terminal):
+for module in (fs_api, ops_api, thumbs, text_api, archive_api, du_api, jobs, search, settings, terminal):
     api.include_router(module.router)
 
 

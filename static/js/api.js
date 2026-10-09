@@ -65,6 +65,7 @@ export const thumbUrl = (path, size, mtime) => `/api/thumb?${qs({ path, size, v:
 export const pageQuery = (params) => qs(params).replace(/%2F/gi, "/");
 export const viewerUrl = (path) => `/viewer.html?${pageQuery({ path })}`;
 export const editorUrl = (path) => `/editor.html?${pageQuery({ path })}`;
+export const duUrl = (path) => `/du.html?${pageQuery({ path })}`;
 export const tailUrl = (path, mode = "tail") => `/tail.html?${pageQuery({ path, mode })}`;
 export const folderUrl = (path) => `/#${encodeURIComponent(path).replace(/%2F/g, "/")}`;
 export const entryUrl = (entry) => (entry.kind === "dir" ? folderUrl(entry.path) : viewerUrl(entry.path));

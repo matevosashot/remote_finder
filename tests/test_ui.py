@@ -446,3 +446,56 @@ def test_page_path_bar(ctx, server, fixture_dir):
     folder = new.value
     folder.wait_for_function("p => decodeURIComponent(location.hash.slice(1)) === p", arg=str(deep))
     expect(folder.locator(f'[data-path="{f}"]')).to_be_visible()
+
+
+# ---------------------------------------------------------------- disk usage page
+
+def test_disk_usage_page(ctx, server, app, tmp_path):
+    root = tmp_path / "du root"
+    (root / "big dir").mkdir(parents=True)
+    (root / "it's here").mkdir()
+    (root / "small").mkdir()
+    (root / "big dir" / "a.bin").write_bytes(os.urandom(3 << 20))
+    (root / "it's here" / "b.bin").write_bytes(os.urandom(2 << 20))
+    (root / "small" / "x.txt").write_text("x")
+    # opened from the main window's menu
+    app.goto(f"{server}/#{root}")
+    expect(item(app, str(root / "small"))).to_be_visible()
+    app.locator(".view-host").click(button="right", position={"x": 600, "y": 400})
+    with ctx.expect_page() as new:
+        app.locator(".menu-item", has_text="Analyze Disk Usage").click()
+    page = new.value
+    expect(page.locator("#status")).to_contain_text("Scanned", timeout=20000)
+    assert page.locator(".du-stage path.du-seg").count() >= 3
+    page.locator("#chart-kind [data-kind=treemap]").click()
+    assert page.locator(".du-stage rect.du-seg").count() >= 3
+    page.locator("#chart-kind [data-kind=rings]").click()
+
+    odd = str(root / "it's here")
+    row = page.locator(f'.du-list .row[data-path="{odd}"]')
+    before = page.locator("#meta").text_content()
+    row.click()
+    page.keyboard.press("Delete")
+    expect(row).to_have_count(0)
+    expect(page.locator(".du-archive-head .title")).to_contain_text("1 item")
+    assert page.locator("#meta").text_content() != before   # subtracted from the total
+    page.keyboard.press("Control+z")
+    expect(row).to_have_count(1)
+    expect(page.locator("#meta")).to_have_text(before)
+    page.keyboard.press("Control+Shift+z")
+    expect(row).to_have_count(0)
+
+    page.locator("button", has_text="Show Delete Command").click()
+    cmd = page.locator("textarea.du-cmd").input_value()
+    assert cmd == "rm -rf -- \\\n  '" + odd.replace("'", "'\\''") + "'\n"
+    # what bash would delete is exactly the archived path
+    argv = subprocess.run(["bash", "-c", cmd.replace("rm -rf --", "printf '%s\\0'", 1)], capture_output=True, check=True).stdout
+    assert argv.split(b"\0")[:-1] == [odd.encode()]
+    page.keyboard.press("Escape")
+    assert (root / "it's here" / "b.bin").exists()   # nothing was deleted
+
+    # double-click zooms in, Backspace zooms out
+    page.locator(f'.du-list .row[data-path="{root / "big dir"}"]').dblclick()
+    expect(page.locator("#name")).to_have_text("big dir")
+    page.keyboard.press("Backspace")
+    expect(page.locator("#name")).to_have_text("du root")
