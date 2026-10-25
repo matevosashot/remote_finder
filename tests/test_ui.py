@@ -400,6 +400,19 @@ def test_viewer_offers_retry_when_the_server_is_unreachable(ctx, server, fixture
     ctx.errors.clear()
 
 
+def test_viewer_highlight_toggle_is_remembered(ctx, server, fixture_dir):
+    url = f"{server}/viewer.html?path={quote(str(fixture_dir / 'hello.py'))}"
+    page = ctx.new_page()
+    page.goto(url)
+    expect(page.locator(".code-view .hljs-keyword").first).to_be_visible()
+    page.locator("#actions button", has_text="Highlight").click()
+    expect(page.locator(".code-view")).to_contain_text("def hello")
+    expect(page.locator(".code-view .hljs-keyword")).to_have_count(0)
+    page.reload()
+    expect(page.locator(".code-view")).to_contain_text("def hello")
+    expect(page.locator(".code-view .hljs-keyword")).to_have_count(0)
+
+
 def test_viewer_html_render_is_sandboxed(ctx, server, fixture_dir):
     page = ctx.new_page()
     page.goto(f"{server}/viewer.html?path={quote(str(fixture_dir / 'page.html'))}")

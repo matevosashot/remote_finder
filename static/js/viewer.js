@@ -12,6 +12,7 @@ const body = $("#body");
 const RAW_LIMIT = 5 << 20; // above this, text loads in chunks
 
 let wrap = store.get("viewer.wrap", false);
+let highlight = store.get("viewer.highlight", true);
 
 function setHeader(st) {
   document.title = basename(path);
@@ -116,8 +117,13 @@ async function showText(st, box, { pretty = false } = {}) {
     wrapBtn.classList.toggle("on", wrap);
     box.querySelectorAll(".code-view").forEach((c) => c.classList.toggle("wrap", wrap));
   } }, "Wrap");
-  actions(st, [wrapBtn]);
-  const lang = langFor(st.name);
+  const hlBtn = h("button", { class: `btn small ${highlight ? "on" : ""}`, title: "Syntax highlighting", onclick: () => {
+    highlight = !highlight;
+    store.set("viewer.highlight", highlight);
+    showText(st, box, { pretty });
+  } }, "Highlight");
+  actions(st, [hlBtn, wrapBtn]);
+  const lang = highlight ? langFor(st.name) : null;
   if (st.size <= RAW_LIMIT) {
     let t = await text();
     if (pretty) { try { t = JSON.stringify(JSON.parse(t), null, 2); } catch {} }
