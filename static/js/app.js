@@ -3,7 +3,7 @@ import * as A from "./actions.js";
 import { get } from "./api.js";
 import { backgroundMenu, itemMenu } from "./contextmenu.js";
 import { ICONS } from "./icons.js";
-import { goToFolder, initKeyboard } from "./keyboard.js";
+import { goToPath, initKeyboard } from "./keyboard.js";
 import { exitSearch, goBack, goForward, navigate, pathFromHash, rebuildItems, startSearch } from "./nav.js";
 import { renderPreview } from "./preview.js";
 import { bindDropTarget, bindItems } from "./selection.js";
@@ -43,6 +43,7 @@ function buildShell() {
     h("div", { class: "tb-group" },
       btn("newfolder", `New folder (${K.alt}${K.shift}N)`, () => A.newFolder()),
       btn("upload", "Upload files (drag & drop works too)", () => import("./upload.js").then((u) => u.pickFiles(state.path))),
+      btn("goto", `Go to a folder or file (${K.mod}${K.shift}G)`, () => goToPath()),
       el.hidden, el.preview,
       btn("terminal", "Terminal (Ctrl+`)", () => toggleTerminal())),
     h("div", { class: "search-wrap", html: ICONS.search }, el.search));
@@ -141,7 +142,7 @@ function wire() {
     const c = e.target.closest("[data-target]");
     return c ? { path: c.dataset.target, el: c } : null;
   });
-  el.crumbs.addEventListener("dblclick", (e) => { if (!e.target.closest(".crumb")) goToFolder(); });
+  el.crumbs.addEventListener("dblclick", (e) => { if (!e.target.closest(".crumb")) goToPath(); });
 
   // filter as you type; Enter searches recursively
   el.search.addEventListener("input", () => {
@@ -205,7 +206,9 @@ async function main() {
   try {
     await navigate(start, { push: false });
   } catch {
-    await navigate(state.home, { push: false });
+    // a file in the address (/#/path/to/file): show it in its folder, else fall back to home
+    const parent = start.replace(/\/[^/]*$/, "") || "/";
+    await navigate(parent, { push: false, select: start }).catch(() => navigate(state.home, { push: false }));
   }
   history.replaceState({ idx: 1 }, "", location.href);
   el.viewHost.querySelector(".view-bg")?.focus();

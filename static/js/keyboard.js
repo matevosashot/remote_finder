@@ -1,13 +1,14 @@
 // Finder-style keyboard shortcuts (Mod = Ctrl or Cmd). Disabled while typing or in the terminal.
 import * as A from "./actions.js";
-import { promptDialog } from "./dialogs.js";
+import { get, viewerUrl } from "./api.js";
+import { promptDialog, toastError } from "./dialogs.js";
 import { exitSearch, goBack, goForward, goUp, navigate } from "./nav.js";
 import * as QL from "./quicklook.js";
 import { quickOpen } from "./quickopen.js"; // static: a lazy import would drop keys typed right after Ctrl+P
 import { clearSelection, selectAll, typeSelect } from "./selection.js";
 import { setOption } from "./settings.js";
 import { state } from "./state.js";
-import { canEdit, join, mod } from "./util.js";
+import { canEdit, dirname, join, mod, openTab } from "./util.js";
 
 const VIEW_KEYS = ["icons", "list", "columns", "gallery"]; // Alt+1..4
 
@@ -28,7 +29,7 @@ export function initKeyboard({ getView, focusSearch }) {
     const one = sel.length === 1 ? sel[0] : null;
 
     if (mod(e) && e.shiftKey && e.code === "Period") { handled(); return setOption("showHidden", !state.showHidden); }
-    if (mod(e) && e.shiftKey && k.toLowerCase() === "g") { handled(); return goToFolder(); }
+    if (mod(e) && e.shiftKey && k.toLowerCase() === "g") { handled(); return goToPath(); }
     if (e.altKey && e.shiftKey && e.code === "KeyN") { handled(); return A.newFolder(); }
     if (e.altKey && !mod(e) && /^Digit[1-4]$/.test(e.code)) { handled(); return setOption("view", VIEW_KEYS[+e.code.slice(-1) - 1]); }
 
@@ -70,11 +71,18 @@ export function initKeyboard({ getView, focusSearch }) {
   });
 }
 
-export async function goToFolder() {
-  const v = await promptDialog("Go to the folder:", state.path, { ok: "Go" });
+/** Go to a folder, or to a file: show it selected in its folder and open it in the viewer. */
+export async function goToPath() {
+  const v = await promptDialog("Go to a folder or file:", state.path, { ok: "Go" });
   if (!v) return;
-  const path = v.trim().replace(/^~(?=\/|$)/, state.home);
+  const typed = v.trim().replace(/^~(?=\/|$)/, state.home);
+  const path = typed.startsWith("/") ? typed : join(state.path, typed);
   try {
-    await navigate(path.startsWith("/") ? path : join(state.path, path));
-  } catch {}
+    const st = await get("/api/stat", { path });
+    if (st.kind === "dir") return await navigate(path);
+    await navigate(dirname(st.path || path), { select: st.path || path });
+    openTab(viewerUrl(st.path || path));
+  } catch (e) {
+    toastError(e);
+  }
 }

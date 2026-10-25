@@ -180,6 +180,33 @@ def test_menu_copy_path_and_quicklook(app, fixture_dir):
 
 
 
+def test_go_to_path_takes_folders_and_files(app, ctx, fixture_dir):
+    def go(path):
+        app.keyboard.press("Control+Shift+g")
+        app.locator(".dialog input").fill(str(path))
+        app.keyboard.press("Enter")
+
+    go(fixture_dir / "sub")
+    wait_until(lambda: hash_path(app) == str(fixture_dir / "sub"))
+    with ctx.expect_page() as opened:
+        go(fixture_dir / "hello.py")
+    wait_until(lambda: hash_path(app) == str(fixture_dir))
+    wait_until(lambda: selected_names(app) == ["hello.py"])
+    viewer = opened.value
+    viewer.wait_for_load_state()
+    assert "viewer.html" in viewer.url and "hello.py" in viewer.url
+    go(fixture_dir / "missing.txt")
+    expect(app.locator(".toast.error, .toast")).to_be_visible()
+    ctx.errors.clear()  # the failed lookup is logged by the browser
+
+
+def test_address_with_a_file_opens_its_folder(ctx, server, fixture_dir):
+    page = ctx.new_page()
+    page.goto(f"{server}/#{fixture_dir / 'hello.py'}")
+    wait_until(lambda: selected_names(page) == ["hello.py"])
+    ctx.errors.clear()
+
+
 def test_submenu_stays_next_to_its_item(app, fixture_dir):
     """Right-click far from the corner: the Compress As submenu must open beside its row, on screen."""
     app.keyboard.press("Alt+1")
