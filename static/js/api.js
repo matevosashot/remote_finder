@@ -37,7 +37,7 @@ async function fetchRetry(url, opts) {
       return await fetch(url, opts);
     } catch (e) {
       if (e.name === "AbortError") throw e;
-      if (attempt >= 3) throw new ApiError(0, "Can't reach the server. Is the SSH tunnel up?");
+      if (attempt >= 3) throw new ApiError(0, "Can't reach the server. Check that the SSH tunnel is up, and that an ad blocker or privacy extension isn't blocking requests to this page (try turning it off for this site).");
       await sleep([300, 800, 1500][attempt]);
     }
   }
