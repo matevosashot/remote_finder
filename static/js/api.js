@@ -28,7 +28,25 @@ export const qs = (params) => {
   return u.toString();
 };
 
-export const get = (path, params = {}, opts = {}) => fetch(`${path}?${qs(params)}`, opts).then(handle);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** GET that retries when the request never reaches the server (a dropped SSH tunnel throws TypeError). */
+async function fetchRetry(url, opts) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetch(url, opts);
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      if (attempt >= 3) throw new ApiError(0, "Can't reach the server. Is the SSH tunnel up?");
+      await sleep([300, 800, 1500][attempt]);
+    }
+  }
+}
+
+export const get = (path, params = {}, opts = {}) => fetchRetry(`${path}?${qs(params)}`, opts).then(handle);
+
+/** Body of a URL as text; throws on an error status instead of returning the error page. */
+export const fetchText = (url) => fetchRetry(url).then(async (res) => (res.ok ? res.text() : handle(res)));
 
 /** JSON request that changes something. `keepalive` lets it finish while the page unloads. */
 export const send = (method, path, body, { keepalive = false } = {}) =>

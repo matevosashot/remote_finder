@@ -1,5 +1,5 @@
 // New-tab viewer: code, JSON, Markdown, CSV, notebooks, images (with folder stepping), media, PDF.
-import { editorUrl, folderUrl, get, rawUrl, tailUrl, viewerUrl } from "./api.js";
+import { editorUrl, fetchText, folderUrl, get, rawUrl, tailUrl, viewerUrl } from "./api.js";
 import { toastError } from "./dialogs.js";
 import { showPath } from "./pathbar.js";
 import { $, basename, canEdit, category, clickLink, dirname, extOf, fmtDate, fmtSize, h, isText, join, kindLabel, openTab, store } from "./util.js";
@@ -36,9 +36,15 @@ function modes(list, current, onPick) {
     h("button", { class: `seg-btn ${key === current ? "on" : ""}`, onclick: () => onPick(key) }, label)));
 }
 
+/** Show an error with a Retry button (the tunnel may just have blipped). */
+function failed(e, box = body, retry = load) {
+  box.replaceChildren(h("div", { class: "page-msg" }, h("p", {}, String(e.message || e)),
+    h("p", {}, h("button", { class: "btn", onclick: () => retry() }, "Retry"))));
+}
+
 async function load() {
   let st;
-  try { st = await get("/api/stat", { path }); } catch (e) { body.replaceChildren(h("p", { class: "page-msg" }, e.message)); return; }
+  try { st = await get("/api/stat", { path }); } catch (e) { return failed(e); }
   st.name = st.name || basename(path);
   if (st.kind === "dir") { location.replace(folderUrl(path)); return; }
   setHeader(st);
@@ -82,7 +88,7 @@ async function load() {
 
 let cachedText = null;
 async function text() {
-  if (cachedText == null) cachedText = await (await fetch(rawUrl(path))).text();
+  if (cachedText == null) cachedText = await fetchText(rawUrl(path));
   return cachedText;
 }
 
@@ -97,7 +103,7 @@ function showToggle(st, list, initial, render) {
     modes(list, m, draw);
     const box = h("div", { class: "page-scroll" });
     body.replaceChildren(box);
-    try { await render(m, box); } catch (e) { box.replaceChildren(h("p", { class: "page-msg" }, String(e.message || e))); }
+    try { await render(m, box); } catch (e) { failed(e, box, () => draw(m)); }
   };
   draw(mode);
 }

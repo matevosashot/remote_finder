@@ -371,6 +371,35 @@ def test_viewer(ctx, server, fixture_dir, name, selector, text):
     assert page.title() != "script ran"
 
 
+def test_viewer_retries_when_the_connection_drops(ctx, server, fixture_dir):
+    drops = []
+
+    def flaky(route):
+        if len(drops) < 2:
+            drops.append(1)
+            route.abort("connectionreset")
+        else:
+            route.continue_()
+
+    page = ctx.new_page()
+    page.route("**/api/stat**", flaky)
+    page.goto(f"{server}/viewer.html?path={quote(str(fixture_dir / 'hello.py'))}")
+    expect(page.locator(".code-view .hljs-keyword").first).to_be_visible()
+    assert len(drops) == 2
+    ctx.errors.clear()  # the aborted requests are logged by the browser
+
+
+def test_viewer_offers_retry_when_the_server_is_unreachable(ctx, server, fixture_dir):
+    page = ctx.new_page()
+    page.route("**/api/stat**", lambda route: route.abort("connectionreset"))
+    page.goto(f"{server}/viewer.html?path={quote(str(fixture_dir / 'hello.py'))}")
+    expect(page.locator(".page-msg")).to_contain_text("Can't reach the server")
+    page.unroute("**/api/stat**")
+    page.locator(".page-msg button", has_text="Retry").click()
+    expect(page.locator(".code-view .hljs-keyword").first).to_be_visible()
+    ctx.errors.clear()
+
+
 def test_viewer_html_render_is_sandboxed(ctx, server, fixture_dir):
     page = ctx.new_page()
     page.goto(f"{server}/viewer.html?path={quote(str(fixture_dir / 'page.html'))}")
