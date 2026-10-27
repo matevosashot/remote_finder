@@ -7,8 +7,8 @@ upload, and drop into a terminal in the current folder.
 
 ![List view with an expanded folder and the code preview pane](docs/screenshots/list-preview.png)
 
-There is no login: it listens on `127.0.0.1` only and is meant to be used through `ssh -L`
-(see [Security](#security-model)). The frontend has no build step.
+There is no login. It listens on a Unix socket that only your user can open, and you reach it
+through `ssh -L` (see [Security](#security-model)). The frontend has no build step.
 
 ## Features
 
@@ -67,14 +67,17 @@ git clone git@github.com:matevosashot/remote_finder.git ~/remote_finder
 cd ~/remote_finder
 python3.10 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-./run.sh                                  # http://127.0.0.1:8090 (REMOTE_FINDER_PORT changes the port)
+./run.sh                                  # serves on ~/.cache/remote-finder/app.sock
 ```
 
-From your laptop, forward the port and open <http://localhost:8090>:
+From your laptop, forward a local port to that socket and open <http://localhost:8090>:
 
 ```bash
-ssh -N -L 8090:127.0.0.1:8090 you@your-server
+ssh -N -L 8090:/home/you/.cache/remote-finder/app.sock you@your-server
 ```
+
+Use the full path, since `~` isn't expanded there; `run.sh` prints the exact command when it starts. In
+`~/.ssh/config` the same forward is `LocalForward 8090 /home/you/.cache/remote-finder/app.sock`.
 
 ### Run it as a service
 
@@ -131,9 +134,12 @@ On the disk usage page:
 
 ## Security model
 
-There is no authentication, and the app includes a shell, so it is locked down to your machine:
+There is no authentication, and the app includes a shell, so it is locked down to your user:
 
-- The server binds to `127.0.0.1` only; reach it through an SSH tunnel.
+- The server listens on a Unix socket, `~/.cache/remote-finder/app.sock`, in a folder with mode 700,
+  so only your user (and root) can connect. A TCP port on `127.0.0.1` would be open to every account
+  on the machine, and while the app was down another account could take the port and show a fake page.
+  If a socket was left behind by a crash, it is replaced at startup, and a second copy refuses to start.
 - Requests whose `Host` isn't a loopback name are rejected, which blocks DNS rebinding.
 - WebSockets (terminal, follow) and every change need an `Origin` matching the host.
 - Changes also need an `X-Remote-Finder: 1` header. That forces a CORS preflight the server never
@@ -141,8 +147,9 @@ There is no authentication, and the app includes a shell, so it is locked down t
 - Files are served with `Content-Security-Policy: sandbox` and `nosniff`. HTML and SVG show as
   source unless you pick the sandboxed render, so a file can't run script against the app.
 
-Anyone who can open a connection to 127.0.0.1 on the server (other local users, too) can use it.
-Run it only on a machine where that is acceptable.
+On your laptop, the tunnel's `localhost:8090` is open to whoever can use that laptop.
+`REMOTE_FINDER_SOCKET=<path>` picks another socket path. `REMOTE_FINDER_PORT=<n>` serves on
+`127.0.0.1:<n>` instead, but then every account on the server can use the app.
 
 Settings and bookmarks live in `~/.config/remote-finder/settings.json`, the disk usage archive list
 in `~/.config/remote-finder/archive.json`, image thumbnails in `~/.cache/remote-finder/thumbs`.
@@ -172,6 +179,7 @@ The page also lists all of its modules up front, so a first load fetches them in
 ```
 remote_finder/          FastAPI backend
   main.py               app assembly, static files, security middleware
+  serve.py              starts the server on the private Unix socket (run.sh)
   assets.py             content-hashed asset URLs, import map and preloads for the pages
   security.py           Host/Origin/CSRF-header checks, headers for serving user files
   config.py             app name, config/cache dirs, CSRF header name

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-# Start Remote Finder on localhost only (no auth; reach it through an SSH tunnel).
+# Start Remote Finder on a Unix socket only you can open (~/.cache/remote-finder/app.sock).
+# Reach it through an SSH tunnel; see remote_finder/serve.py.
 cd "$(dirname "$0")"
-exec .venv/bin/uvicorn remote_finder.main:app --host 127.0.0.1 --port "${REMOTE_FINDER_PORT:-8090}" --workers 1 --no-access-log
+exec .venv/bin/python -m remote_finder.serve

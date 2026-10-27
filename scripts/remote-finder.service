@@ -1,5 +1,5 @@
 [Unit]
-Description=Remote Finder (Finder-style web file manager, localhost only)
+Description=Remote Finder (Finder-style web file manager, on a private Unix socket)
 
 [Service]
 WorkingDirectory=%h/remote_finder
