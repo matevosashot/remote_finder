@@ -82,16 +82,19 @@ Use the full path, since `~` isn't expanded there; `remote_finder` prints the ex
 
 ### Run it as a service
 
-A systemd user unit is included (it expects the checkout at `~/remote_finder`):
-
 ```bash
-mkdir -p ~/.config/systemd/user
-cp scripts/remote-finder.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now remote-finder
-loginctl enable-linger "$USER"           # keep it running after you log out (may need admin rights)
-journalctl --user -u remote-finder -f    # logs
+remote_finder install_service                 # per-user systemd service on the private socket, starts on boot
+remote_finder install_service --socket /path/to/app.sock    # another socket path
+remote_finder install_service --port 8090     # 127.0.0.1:8090 instead of a socket
+remote_finder install_service --system        # system-wide unit (uses sudo); still runs as you, not root
+remote_finder uninstall_service               # stop and remove it (add --system for the system one)
 ```
+
+`--user` is the default. It writes `~/.config/systemd/user/remote-finder.service`, enables and starts
+it, and runs `loginctl enable-linger` so it keeps running after you log out and starts at boot (that
+step may need admin rights; it prints the command if it fails). The unit runs the Python that
+installed Remote Finder, so run `install_service` again after moving or upgrading the install.
+Logs: `journalctl --user -u remote-finder -f`.
 
 The server runs as your user, so it can see and change exactly what you can.
 

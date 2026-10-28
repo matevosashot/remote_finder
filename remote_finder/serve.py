@@ -67,8 +67,8 @@ def bind_socket(path: str) -> socket.socket:
     return sock
 
 
-def tunnel_hint(path: str) -> str:
-    return (f"From your laptop: ssh -N -L 8090:{path} {os.environ.get('USER', 'you')}@"
+def tunnel_hint(path: str, user: str | None = None) -> str:
+    return (f"From your laptop: ssh -N -L 8090:{path} {user or os.environ.get('USER', 'you')}@"
             f"{socket.gethostname()}  then open http://localhost:8090")
 
 
