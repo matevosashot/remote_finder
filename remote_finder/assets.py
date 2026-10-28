@@ -13,7 +13,7 @@ import json
 import os
 import re
 
-STATIC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 PAGES = ("index.html", "du.html", "viewer.html", "editor.html", "tail.html")
 
 _URL = re.compile(r'''(href|src)="(/(?:css|js|vendor)/[^"?#]+)"''')

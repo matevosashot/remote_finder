@@ -5,8 +5,8 @@ port while the app is down. A socket file in a folder with mode 700 is reachable
 (and root), at the same path every time. Reach it from a laptop with
 `ssh -N -L 8090:<socket path> you@server`.
 
-REMOTE_FINDER_SOCKET=<path> picks another socket path; REMOTE_FINDER_PORT=<n> serves on
-127.0.0.1:<n> instead, open to every local account.
+`remote_finder --socket PATH` picks another socket path; `remote_finder --port N` serves on
+127.0.0.1:N instead, open to every local account.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import uvicorn
 
 from .config import CACHE_DIR
 
-SOCKET_PATH = os.environ.get("REMOTE_FINDER_SOCKET") or os.path.join(CACHE_DIR, "app.sock")
+DEFAULT_SOCKET = os.path.join(CACHE_DIR, "app.sock")
 log = logging.getLogger("remote_finder")
 
 
@@ -38,7 +38,7 @@ def private_dir(path: str) -> None:
 def bind_socket(path: str) -> socket.socket:
     """Listen on `path`, replacing a socket left behind by a crash, refusing if one is live."""
     if len(os.fsencode(path)) > 107:   # the kernel's limit for socket paths
-        sys.exit(f"{path} is too long for a socket; set REMOTE_FINDER_SOCKET to a shorter path")
+        sys.exit(f"{path} is too long for a socket; pass a shorter path with --socket")
     private_dir(os.path.dirname(path))
     try:
         st = os.lstat(path)
@@ -67,25 +67,27 @@ def bind_socket(path: str) -> socket.socket:
     return sock
 
 
-def main() -> None:
-    port = os.environ.get("REMOTE_FINDER_PORT")
+def tunnel_hint(path: str) -> str:
+    return (f"From your laptop: ssh -N -L 8090:{path} {os.environ.get('USER', 'you')}@"
+            f"{socket.gethostname()}  then open http://localhost:8090")
+
+
+def serve(socket_path: str | None = None, port: int | None = None) -> None:
+    """Serve on `port` (127.0.0.1) if given, else on a private Unix socket (default path if None)."""
     opts = {"workers": 1, "access_log": False}
     if port:
         print(f"Serving on 127.0.0.1:{port}; every account on this machine can connect", file=sys.stderr)
-        uvicorn.run("remote_finder.main:app", host="127.0.0.1", port=int(port), **opts)
+        uvicorn.run("remote_finder.main:app", host="127.0.0.1", port=port, **opts)
         return
-    sock = bind_socket(SOCKET_PATH)
-    print(f"Serving on {SOCKET_PATH}\nFrom your laptop: ssh -N -L 8090:{SOCKET_PATH} {os.environ.get('USER', 'you')}@"
-          f"{socket.gethostname()}  then open http://localhost:8090", file=sys.stderr)
+    path = os.path.abspath(os.path.expanduser(socket_path or DEFAULT_SOCKET))
+    sock = bind_socket(path)
+    print(f"Serving on {path}\n{tunnel_hint(path)}", file=sys.stderr)
     try:
         uvicorn.run("remote_finder.main:app", fd=sock.fileno(), **opts)
     finally:
         sock.close()
         try:
-            os.unlink(SOCKET_PATH)
+            os.unlink(path)
         except OSError:
             pass
 
-
-if __name__ == "__main__":
-    main()

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Download pinned frontend libraries into static/vendor (run once; no build step).
+# Download pinned frontend libraries into remote_finder/static/vendor (run once; no build step).
 set -euo pipefail
-cd "$(dirname "$0")/../static/vendor"
+cd "$(dirname "$0")/../remote_finder/static/vendor"
 J=https://cdn.jsdelivr.net/npm
 get() { mkdir -p "$(dirname "$2")"; curl -fsSL "$1" -o "$2"; echo "ok  $2"; }
 

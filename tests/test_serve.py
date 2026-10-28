@@ -23,9 +23,8 @@ def sock_dir():
     shutil.rmtree(d, ignore_errors=True)
 
 
-def serve(path, **env):
-    return subprocess.Popen([sys.executable, "-m", "remote_finder.serve"], cwd=ROOT,
-                            env={**os.environ, "REMOTE_FINDER_SOCKET": path, **env},
+def serve(path):
+    return subprocess.Popen([sys.executable, "-m", "remote_finder", "--socket", path], cwd=ROOT, env=os.environ,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "remote-finder"
+version = "0.1.0"
+description = "Finder-style web file manager for remote machines"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.142",
+    "uvicorn[standard]>=0.54",
+    "pillow>=12",
+    "psutil>=7",
+    "zipstream-ng>=1.9",
+    "zstandard>=0.25",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx", "websockets", "playwright"]
+
+[project.scripts]
+remote_finder = "remote_finder.cli:main"
+remote-finder = "remote_finder.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["remote_finder*"]
+
+[tool.setuptools.package-data]
+remote_finder = ["static/**/*"]

@@ -63,12 +63,13 @@ Disk usage analyzer with three items archived for cleanup (the demo's big files 
 Needs Linux, Python 3.10.12 or newer, and `xz` for `.tar.xz` archives.
 
 ```bash
-git clone git@github.com:matevosashot/remote_finder.git ~/remote_finder
-cd ~/remote_finder
-python3.10 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-./run.sh                                  # serves on ~/.cache/remote-finder/app.sock
+pip install git+https://github.com/matevosashot/remote_finder.git    # or: pipx install git+https://… / uv tool install git+https://…
+remote_finder --socket                    # serves on ~/.cache/remote-finder/app.sock
 ```
+
+That installs the `remote_finder` command, no clone needed. With `pip install --user` it lands in
+`~/.local/bin`; `pipx` and `uv tool` put it on your PATH by themselves. Running `remote_finder` with no
+flags prints the help.
 
 From your laptop, forward a local port to that socket and open <http://localhost:8090>:
 
@@ -76,7 +77,7 @@ From your laptop, forward a local port to that socket and open <http://localhost
 ssh -N -L 8090:/home/you/.cache/remote-finder/app.sock you@your-server
 ```
 
-Use the full path, since `~` isn't expanded there; `run.sh` prints the exact command when it starts. In
+Use the full path, since `~` isn't expanded there; `remote_finder` prints the exact command when it starts. In
 `~/.ssh/config` the same forward is `LocalForward 8090 /home/you/.cache/remote-finder/app.sock`.
 
 ### Run it as a service
@@ -148,8 +149,8 @@ There is no authentication, and the app includes a shell, so it is locked down t
   source unless you pick the sandboxed render, so a file can't run script against the app.
 
 On your laptop, the tunnel's `localhost:8090` is open to whoever can use that laptop.
-`REMOTE_FINDER_SOCKET=<path>` picks another socket path. `REMOTE_FINDER_PORT=<n>` serves on
-`127.0.0.1:<n>` instead, but then every account on the server can use the app.
+`remote_finder --socket PATH` picks another socket path. `remote_finder --port N` serves on
+`127.0.0.1:N` instead, but then every account on the server can use the app.
 
 Settings and bookmarks live in `~/.config/remote-finder/settings.json`, the disk usage archive list
 in `~/.config/remote-finder/archive.json`, image thumbnails in `~/.cache/remote-finder/thumbs`.
@@ -157,7 +158,10 @@ in `~/.config/remote-finder/archive.json`, image thumbnails in `~/.cache/remote-
 ## Development
 
 ```bash
-.venv/bin/pip install -r requirements-dev.txt
+git clone git@github.com:matevosashot/remote_finder.git ~/remote_finder && cd ~/remote_finder
+python3.10 -m venv .venv
+.venv/bin/pip install -e '.[dev]'                 # or: -r requirements-dev.txt (exact pins)
+./run.sh                                          # same as: .venv/bin/remote_finder --socket
 .venv/bin/pytest -q tests                         # API tests, plus UI tests if Chrome is installed
 .venv/bin/python scripts/make_screenshots.py      # rebuild docs/screenshots from a demo folder
 .venv/bin/python scripts/make_screenshots.py --only disk-usage   # retake one, reusing the demo folder
@@ -168,7 +172,7 @@ Playwright and are skipped if neither is installed. The screenshot script builds
 folder in `/tmp/demo` and fakes the host name and disks, so no real machine details appear in the
 images.
 
-Frontend libraries are vendored in `static/vendor` (xterm.js, highlight.js, marked, DOMPurify,
+Frontend libraries are vendored in `remote_finder/static/vendor` (xterm.js, highlight.js, marked, DOMPurify,
 CodeMirror 5, d3); `scripts/fetch_vendor.sh` re-downloads the pinned versions.
 
 There is no build step. The server rewrites each page as it serves it. Every asset URL gets a content hash
@@ -179,7 +183,8 @@ The page also lists all of its modules up front, so a first load fetches them in
 ```
 remote_finder/          FastAPI backend
   main.py               app assembly, static files, security middleware
-  serve.py              starts the server on the private Unix socket (run.sh)
+  cli.py                the `remote_finder` command (--socket / --port)
+  serve.py              starts the server on the private Unix socket or a port
   assets.py             content-hashed asset URLs, import map and preloads for the pages
   security.py           Host/Origin/CSRF-header checks, headers for serving user files
   config.py             app name, config/cache dirs, CSRF header name
@@ -192,8 +197,8 @@ remote_finder/          FastAPI backend
   search.py, thumbs.py  filename search and quick-open walk, image thumbnails
   terminal.py, jobs.py  pty terminal over WebSocket, background jobs with progress/cancel
   settings.py           bookmarks and view options
-static/                 index/viewer/tail/editor/du pages, ES modules in js/, CSS, vendored libs
+  static/               index/viewer/tail/editor/du pages, ES modules in js/, CSS, vendored libs
 tests/                  pytest API tests and Playwright UI tests
-scripts/                service unit, screenshot generator, vendor download
+scripts/                screenshot generator, vendor download
 docs/screenshots/       README images
 ```
