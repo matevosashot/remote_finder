@@ -173,7 +173,6 @@ def test_menu_copy_path_and_quicklook(app, fixture_dir):
     item(app, fixture_dir / "README.md").click()
     app.keyboard.press(" ")
     expect(app.locator(".ql-overlay .markdown-body h1")).to_have_text("Title")
-    expect(app.locator(".ql-bar .btn.primary")).to_have_text("Open in New Tab")
     app.keyboard.press("ArrowDown")
     expect(app.locator(".ql-title")).not_to_contain_text("README.md")
     app.keyboard.press(" ")

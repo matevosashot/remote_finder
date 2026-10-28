@@ -17,7 +17,7 @@ export function quickLook() {
   if (!entry) return;
   const title = h("div", { class: "ql-title" });
   const body = h("div", { class: "ql-body" });
-  const openBtn = h("button", { class: "btn small primary" }, "Open in New Tab");
+  const openBtn = h("button", { class: "btn small" }, "Open in New Tab");
   overlay = h("div", { class: "ql-overlay" },
     h("div", { class: "ql-window" },
       h("div", { class: "ql-bar" },
