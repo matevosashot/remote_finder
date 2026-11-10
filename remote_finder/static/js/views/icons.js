@@ -1,9 +1,9 @@
 // Icons view: virtualized grid, size slider, thumbnails, rubber-band selection.
 import { focusIndex, indexOf, moveTo } from "../selection.js";
-import { emit, state } from "../state.js";
-import { h, mod } from "../util.js";
+import { state } from "../state.js";
+import { h } from "../util.js";
 import { VirtualList } from "../virtual.js";
-import { iconEl, itemAttrs, itemClasses } from "./common.js";
+import { bindBand, iconEl, itemAttrs, itemClasses } from "./common.js";
 
 const PAD = 12;
 
@@ -84,26 +84,13 @@ export class IconsView {
     return false;
   }
 
-  /** Drag on empty space draws a selection rectangle (works with virtualization: math, not DOM). */
+  /** Drag on empty space draws a selection rectangle. */
   bindBand() {
-    const sc = this.scroller;
-    sc.addEventListener("mousedown", (e) => {
-      if (e.button !== 0 || e.target.closest("[data-path]")) return;
-      const rect = sc.getBoundingClientRect();
-      const x0 = e.clientX - rect.left + sc.scrollLeft;
-      const y0 = e.clientY - rect.top + sc.scrollTop;
-      const base = mod(e) || e.shiftKey ? new Set(state.selection) : new Set();
-      const band = h("div", { class: "band" });
-      let moved = false;
-      const onMove = (ev) => {
-        const x1 = ev.clientX - rect.left + sc.scrollLeft;
-        const y1 = ev.clientY - rect.top + sc.scrollTop;
-        if (!moved && Math.hypot(x1 - x0, y1 - y0) < 4) return;
-        if (!moved) { moved = true; sc.append(band); }
-        const L = Math.min(x0, x1), T = Math.min(y0, y1), R = Math.max(x0, x1), B = Math.max(y0, y1);
-        Object.assign(band.style, { left: `${L}px`, top: `${T}px`, width: `${R - L}px`, height: `${B - T}px` });
+    bindBand(this.scroller, {
+      canStart: (e) => !e.target.closest("[data-path]"),
+      hitTest: (L, T, R, B) => {
         const { cellW, cellH } = this.metrics();
-        const sel = new Set(base);
+        const out = [];
         const r0 = Math.max(0, Math.floor(T / cellH)), r1 = Math.floor(B / cellH);
         for (let r = r0; r <= r1; r++) {
           for (let c = 0; c < this.cols; c++) {
@@ -111,28 +98,11 @@ export class IconsView {
             // hit-test the icon+label area, not the whole cell
             if (cx + cellW - 8 < L || cx + 8 > R || cy + cellH - 6 < T || cy + 4 > B) continue;
             const it = state.items[r * this.cols + c];
-            if (it) sel.add(it.path);
+            if (it) out.push(it.path);
           }
         }
-        state.selection = sel;
-        emit("selection");
-        // autoscroll near edges
-        if (ev.clientY > rect.bottom - 20) sc.scrollTop += 20;
-        else if (ev.clientY < rect.top + 20) sc.scrollTop -= 20;
-      };
-      const onUp = () => {
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-        band.remove();
-        if (moved) {
-          document.body.dataset.bandJustEnded = "1";
-          setTimeout(() => delete document.body.dataset.bandJustEnded, 0);
-          const last = [...state.selection].pop();
-          state.anchor = state.focus = last ?? null;
-        }
-      };
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
+        return out;
+      },
     });
   }
 

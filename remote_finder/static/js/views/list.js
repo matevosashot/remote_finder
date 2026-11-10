@@ -3,9 +3,9 @@ import { toggleExpand } from "../nav.js";
 import { focusIndex, indexOf, moveTo } from "../selection.js";
 import { sortBy } from "../settings.js";
 import { state } from "../state.js";
-import { dirname, fmtDate, fmtSize, h, kindLabel } from "../util.js";
+import { dirname, fmtDate, fmtSize, h, kindLabel, mod } from "../util.js";
 import { VirtualList } from "../virtual.js";
-import { iconEl, itemAttrs, itemClasses } from "./common.js";
+import { bindBand, iconEl, itemAttrs, itemClasses } from "./common.js";
 
 const ROW = 24;
 
@@ -21,6 +21,22 @@ export class ListView {
     this.scroller.addEventListener("click", (e) => {
       const tri = e.target.closest(".disclosure");
       if (tri) toggleExpand(tri.closest("[data-path]").dataset.path);
+    });
+    // a band starts below the rows or on a row that isn't selected; a selected row drags instead
+    bindBand(this.scroller, {
+      canStart: (e) => {
+        if (e.target.closest(".disclosure")) return false;
+        const row = e.target.closest("[data-path]");
+        return !row || (!state.selection.has(row.dataset.path) && !mod(e) && !e.shiftKey);
+      },
+      hitTest: (L, T, R, B) => {
+        const out = [];
+        const last = Math.min(state.items.length - 1, Math.floor(B / ROW));
+        for (let i = Math.max(0, Math.floor(T / ROW)); i <= last; i++) {
+          if (state.items[i].kind !== "placeholder") out.push(state.items[i].path);
+        }
+        return out;
+      },
     });
   }
 

@@ -265,6 +265,7 @@ def test_file_operations(app, fixture_dir):
     expect(app.locator(".sel .name")).to_have_text("archive")
     assert sorted(os.listdir(fixture_dir / "archive")) == ["one.txt", "two.txt"]
     # drag a file onto a folder moves it
+    item(app, fixture_dir / "made by test.zip").click()  # in list view, dragging an unselected row draws a band
     item(app, fixture_dir / "made by test.zip").drag_to(item(app, folder))
     expect(item(app, fixture_dir / "made by test.zip")).to_have_count(0)
     wait_until(lambda: (folder / "made by test.zip").exists())
@@ -333,6 +334,7 @@ def test_get_info_and_sidebar_bookmark(app, fixture_dir):
     expect(app.locator(".dialog .info-table tr", has_text="Size")).to_contain_text("1 files")
     app.keyboard.press("Escape")
     # drop on the Favorites header: dropping on an existing bookmark would move the folder into it
+    item(app, fixture_dir / "photos").click()
     item(app, fixture_dir / "photos").drag_to(app.locator(".sb-favorites .sb-head"))
     expect(app.locator(f'.sb-item[data-target="{fixture_dir / "photos"}"]')).to_be_visible()
     app.locator(f'.sb-item[data-target="{fixture_dir / "photos"}"]').click()
@@ -350,6 +352,26 @@ def test_desktop_drop_on_a_folder_uploads(app, fixture_dir):
     }""")
     wait_until(lambda: (fixture_dir / "sub" / "dropped.txt").exists())
     wait_until(lambda: (fixture_dir / "sub" / "dropped.txt").read_text() == "dropped\n")
+
+
+def test_list_band_select_and_drag_of_a_selection(app, fixture_dir):
+    rows = app.locator(".list-scroll .row")
+    first = rows.nth(1).bounding_box()
+    names = app.evaluate("() => [...document.querySelectorAll('.list-scroll .row .name')].slice(1, 4).map(e => e.textContent)")
+    app.keyboard.press("Escape")
+    # drag from an unselected row down over three rows: a selection rectangle, not a drag-and-drop
+    app.mouse.move(first["x"] + 200, first["y"] + 5)
+    app.mouse.down()
+    app.mouse.move(first["x"] + 220, first["y"] + 30, steps=4)
+    app.mouse.move(first["x"] + 220, first["y"] + first["height"] * 2 + 10, steps=4)
+    expect(app.locator(".list-scroll .band")).to_be_visible()
+    app.mouse.up()
+    assert sorted(selected_names(app)) == sorted(names)
+    # starting on a selected row drags it as before
+    item(app, fixture_dir / "table.csv").click()
+    item(app, fixture_dir / "table.csv").drag_to(item(app, fixture_dir / "photos"))
+    wait_until(lambda: (fixture_dir / "photos" / "table.csv").exists())
+    os.rename(fixture_dir / "photos" / "table.csv", fixture_dir / "table.csv")  # put it back for later tests
 
 
 def test_upload_with_conflict(app, fixture_dir, tmp_path):
