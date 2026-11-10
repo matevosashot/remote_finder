@@ -140,6 +140,7 @@ export function bindItems(root, handlers) {
     pendingSingle = null;
     if (!state.selection.has(el.dataset.path)) clickSelect(el.dataset.path, {});
     const paths = [...state.selection];
+    document.body.classList.add("dragging-items"); // shows drop targets that only make sense mid-drag
     e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(paths));
     e.dataTransfer.setData("text/plain", paths.join("\n"));
     e.dataTransfer.effectAllowed = "copyMove";
@@ -163,6 +164,11 @@ export function bindItems(root, handlers) {
     return bg ? { path: bg, el: root } : null;
   });
 }
+
+// the drag source row may be gone by the time the drag ends (a move re-renders the list), so its
+// dragend can't be relied on to bubble; the first pointer move after any drag ends clears it too
+const endItemDrag = () => document.body.classList.remove("dragging-items");
+for (const type of ["dragend", "drop", "pointermove"]) document.addEventListener(type, endItemDrag, true);
 
 export function draggedPaths(dt) {
   try { return JSON.parse(dt.getData(DRAG_TYPE) || "null"); } catch { return null; }

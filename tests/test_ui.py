@@ -392,6 +392,36 @@ def test_rate_meter_speed_and_time_left(app):
     assert out[3] == "6.67 MB/s · 12 s left"
 
 
+def drag_to_download(page, source):
+    """Native drag of `source` onto the sidebar's Download slot, which only appears mid-drag."""
+    box = source.bounding_box()
+    page.mouse.move(box["x"] + 40, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 60, box["y"] + box["height"] / 2 + 10, steps=5)
+    slot = page.locator(".sb-download")
+    expect(slot).to_be_visible()
+    target = slot.bounding_box()
+    page.mouse.move(target["x"] + 20, target["y"] + 10, steps=5)
+    page.mouse.up()
+
+
+def test_drag_to_download(app, fixture_dir):
+    expect(app.locator(".sb-download")).to_be_hidden()
+    item(app, fixture_dir / "hello.py").click()
+    with app.expect_download() as dl:
+        drag_to_download(app, item(app, fixture_dir / "hello.py"))
+    assert dl.value.suggested_filename == "hello.py"
+    expect(app.locator(".sb-download")).to_be_hidden()
+    # several items: asked first, .zip by default
+    item(app, fixture_dir / "hello.py").click()
+    item(app, fixture_dir / "data.json").click(modifiers=["Control"])
+    drag_to_download(app, item(app, fixture_dir / "data.json"))
+    expect(app.locator(".dialog")).to_contain_text("Download 2 items")
+    with app.expect_download() as dl:
+        app.keyboard.press("Enter")
+    assert dl.value.suggested_filename.endswith(".zip")
+
+
 def test_upload_with_conflict(app, fixture_dir, tmp_path):
     src = tmp_path / "up1.txt"
     src.write_text("uploaded\n")

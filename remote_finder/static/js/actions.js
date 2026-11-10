@@ -1,6 +1,6 @@
 // Every user operation lives here so the context menu, toolbar and keyboard share them.
 import { editorUrl, entryUrl, folderUrl, get, post, qs, rawUrl, tailUrl } from "./api.js";
-import { confirmDialog, modal, resolveConflicts, runJob, toast, toastError } from "./dialogs.js";
+import { confirmDialog, downloadChoice, modal, resolveConflicts, runJob, toast, toastError } from "./dialogs.js";
 import { navigate, refresh } from "./nav.js";
 import { draggedPaths } from "./selection.js";
 import { emit, selectedEntries, state } from "./state.js";
@@ -56,6 +56,20 @@ export function download(items = selected()) {
   clickLink(items.length === 1 && items[0].kind === "file"
     ? rawUrl(items[0].path, { download: 1 })
     : `/api/download?${qs({ paths: items.map((i) => i.path) })}`);
+}
+
+/** Items dropped on the sidebar's Download slot: one downloads as usual, several ask zip or individually. */
+export async function downloadDropped(paths) {
+  if (!paths.length) return;
+  const items = await Promise.all(paths.map((p) => state.items.find((i) => i.path === p)
+    || get("/api/stat", { path: p }).catch(() => ({ path: p, name: basename(p), kind: "file" }))));
+  if (items.length === 1) return download(items);
+  const how = await downloadChoice(items.length);
+  if (how === "zip") download(items);
+  else if (how === "each") {
+    // one download per item, a little apart so the browser doesn't drop any; folders still come as .zip
+    items.forEach((it, i) => setTimeout(() => download([it]), i * 250));
+  }
 }
 
 // ---------------------------------------------------------------- create / rename / delete

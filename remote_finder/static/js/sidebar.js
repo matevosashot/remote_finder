@@ -1,5 +1,5 @@
 // Sidebar: Favorites (bookmarks, server-side), Locations (home, /, disks with free space).
-import { dropOn } from "./actions.js";
+import { downloadDropped, dropOn } from "./actions.js";
 import { bookmarkMenu } from "./contextmenu.js";
 import { ICONS } from "./icons.js";
 import { navigate } from "./nav.js";
@@ -9,6 +9,7 @@ import { on, state } from "./state.js";
 import { basename, fmtSize, h } from "./util.js";
 
 const BOOKMARK_DROP = "\0bookmark"; // drop target id for "add to Favorites"
+const DOWNLOAD_DROP = "\0download"; // the Download slot shown while items are dragged
 let root;
 
 export function initSidebar(el) {
@@ -22,8 +23,12 @@ export function initSidebar(el) {
       for (const p of draggedPaths(dt) || []) addBookmark(p);
       return;
     }
+    if (dest === DOWNLOAD_DROP) return downloadDropped(draggedPaths(dt) || []);
     dropOn(dest, dt, copy);
   }, (e) => {
+    if (e.target.closest(".sb-download")) {
+      return isInternalDrag(e.dataTransfer) ? { path: DOWNLOAD_DROP, el: e.target.closest(".sb-download") } : null;
+    }
     const item = e.target.closest("[data-target]");
     if (item) return { path: item.dataset.target, el: item };
     const fav = e.target.closest(".sb-favorites");
@@ -56,7 +61,9 @@ function draw() {
         h("div", { class: "sb-disk", title: `${fmtSize(d.free)} free of ${fmtSize(d.total)}` },
           h("div", { class: `sb-disk-fill ${pct > 90 ? "warn" : ""}`, style: { width: `${pct}%` } })));
     }));
-  root.replaceChildren(favs, disks);
+  const download = h("div", { class: "sb-download", title: "Drop items here to download them" },
+    h("span", { class: "sb-icon", html: ICONS.download }), h("span", { class: "sb-label" }, "Download"));
+  root.replaceChildren(favs, disks, download);
   markActive();
 }
 

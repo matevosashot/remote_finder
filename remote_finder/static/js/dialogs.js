@@ -116,6 +116,19 @@ export function confirmDialog(title, message, { ok = "OK", danger = false, detai
   ]).then((v) => !!v);
 }
 
+/** Ask how to download several items: resolves "zip", "each" or null. */
+export function downloadChoice(n) {
+  return modal((close) => [
+    h("h3", {}, `Download ${n} items`),
+    h("p", {}, "Download them as one .zip, or as separate files? Folders always download as .zip."),
+    h("p", { class: "muted" }, "For separate files the browser may ask once to allow multiple downloads."),
+    h("div", { class: "dialog-buttons" },
+      h("button", { class: "btn", onclick: () => close(null) }, "Cancel"),
+      h("button", { class: "btn", onclick: () => close("each") }, "Individually"),
+      h("button", { class: "btn primary", autofocus: true, onclick: () => close("zip") }, "As One .zip")),
+  ]);
+}
+
 export function promptDialog(title, value = "", { ok = "OK", label = "" } = {}) {
   return modal((close) => {
     const input = h("input", { class: "text", value, autofocus: true, spellcheck: false });
