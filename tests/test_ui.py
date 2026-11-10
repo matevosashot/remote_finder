@@ -422,6 +422,18 @@ def test_drag_to_download(app, fixture_dir):
     assert dl.value.suggested_filename.endswith(".zip")
 
 
+def test_path_bar_context_menu(app, fixture_dir):
+    app.locator(f'.crumb[data-target="{fixture_dir.parent}"]').click(button="right")
+    menu = app.locator(".menu").first
+    expect(menu.locator(".menu-item", has_text="Open Terminal Here")).to_be_visible()
+    menu.locator(".menu-item", has_text="Copy Path").click()
+    assert app.evaluate("() => navigator.clipboard.readText()") == str(fixture_dir.parent)
+    # between crumbs: go to / copy this folder
+    app.locator(".crumb-sep").first.click(button="right")
+    expect(app.locator(".menu .menu-item", has_text="Go to Folder or File")).to_be_visible()
+    app.keyboard.press("Escape")
+
+
 def test_upload_with_conflict(app, fixture_dir, tmp_path):
     src = tmp_path / "up1.txt"
     src.write_text("uploaded\n")

@@ -1,7 +1,7 @@
 // App shell: toolbar, breadcrumbs, view switching, preview pane, status bar, bootstrap.
 import * as A from "./actions.js";
 import { get } from "./api.js";
-import { backgroundMenu, itemMenu } from "./contextmenu.js";
+import { backgroundMenu, crumbMenu, itemMenu } from "./contextmenu.js";
 import { ICONS } from "./icons.js";
 import { goToPath, initKeyboard } from "./keyboard.js";
 import { exitSearch, goBack, goForward, navigate, pathFromHash, rebuildItems, startSearch } from "./nav.js";
@@ -143,6 +143,10 @@ function wire() {
     return c ? { path: c.dataset.target, el: c } : null;
   });
   el.crumbs.addEventListener("dblclick", (e) => { if (!e.target.closest(".crumb")) goToPath(); });
+  el.crumbs.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    crumbMenu(e, e.target.closest(".crumb")?.dataset.target || null);
+  });
 
   // filter as you type; Enter searches recursively
   el.search.addEventListener("input", () => {

@@ -98,4 +98,28 @@ export function bookmarkMenu(e, path) {
   ]);
 }
 
+/** Right-click on the path bar: a folder in the path, or (path = null) the bar's empty space. */
+export function crumbMenu(e, path) {
+  if (!path) {
+    return showMenu(e.clientX, e.clientY, [
+      { icon: "goto", label: "Go to Folder or File…", run: () => import("./keyboard.js").then((k) => k.goToPath()), shortcut: `${K.mod}${K.shift}G` },
+      { icon: "copy", label: "Copy Path of This Folder", run: () => A.copyPaths("path", []) },
+    ]);
+  }
+  const dir = { path, name: path === "/" ? "/" : path.split("/").pop(), kind: "dir" };
+  showMenu(e.clientX, e.clientY, [
+    { icon: "open", label: "Open", run: () => import("./nav.js").then((n) => n.navigate(path)), disabled: path === state.path },
+    { icon: "tab", label: "Open in New Tab", run: () => A.openInNewTab(dir) },
+    "-",
+    { icon: "copy", label: "Copy Path", run: () => A.copyPaths("path", [dir]) },
+    "-",
+    { icon: "info", label: "Get Info", run: () => A.getInfo(dir) },
+    { label: "Calculate Size", run: () => A.calcSize(dir) },
+    { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(path)) },
+    "-",
+    { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(path) },
+    { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(path), disabled: state.bookmarks.includes(path) },
+  ]);
+}
+
 const trim = (s) => (s.length > 28 ? s.slice(0, 25) + "…" : s);
