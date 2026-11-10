@@ -107,11 +107,15 @@ def get_update() -> dict:
     return status()
 
 
-def pip_command(cur: dict) -> list[str]:
-    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet"]
-    if cur.get("user"):
-        cmd.append("--user")
-    return cmd + [f"git+{GIT_URL}@main"]
+def pip_commands(cur: dict) -> list[list[str]]:
+    """Reinstall this package from main, then add any dependencies it gained.
+
+    Every commit has the same version number, so a plain `pip install --upgrade` would see nothing to do:
+    the package itself is force-reinstalled (alone, so its dependencies aren't reinstalled too).
+    """
+    base = [sys.executable, "-m", "pip", "install", "--quiet", *(["--user"] if cur.get("user") else [])]
+    url = f"git+{GIT_URL}@main"
+    return [[*base, "--force-reinstall", "--no-deps", url], [*base, url]]
 
 
 def restart() -> None:
@@ -123,9 +127,10 @@ def install() -> dict:
     cur = installed()
     if not cur or cur["kind"] != "pip":
         raise HTTPException(400, "This copy runs from a git checkout; update it with git pull")
-    r = subprocess.run(pip_command(cur), capture_output=True, text=True, timeout=900)
-    if r.returncode != 0:
-        raise HTTPException(500, f"pip failed:\n{(r.stderr or r.stdout).strip()[-2000:]}")
+    for cmd in pip_commands(cur):
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
+        if r.returncode != 0:
+            raise HTTPException(500, f"pip failed:\n{(r.stderr or r.stdout).strip()[-2000:]}")
     try:
         os.remove(CACHE)  # the next page load checks the new version
     except OSError:

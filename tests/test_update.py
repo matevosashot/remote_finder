@@ -62,10 +62,12 @@ def test_unknown_install_has_no_check(monkeypatch):
     assert update.status() == {"enabled": False}
 
 
-def test_pip_command_matches_the_install():
-    assert update.pip_command(PIP) == [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", "--user",
-                                       "git+https://github.com/matevosashot/remote_finder.git@main"]
-    assert "--user" not in update.pip_command({**PIP, "user": False})
+def test_pip_reinstalls_the_package_then_adds_dependencies():
+    url = "git+https://github.com/matevosashot/remote_finder.git@main"
+    pip = [sys.executable, "-m", "pip", "install", "--quiet", "--user"]
+    # every commit is version 0.1.0, so a plain --upgrade would keep the old code
+    assert update.pip_commands(PIP) == [[*pip, "--force-reinstall", "--no-deps", url], [*pip, url]]
+    assert all("--user" not in c for c in update.pip_commands({**PIP, "user": False}))
 
 
 def test_install_runs_pip_then_restarts(client, gh, monkeypatch):
@@ -74,7 +76,7 @@ def test_install_runs_pip_then_restarts(client, gh, monkeypatch):
     monkeypatch.setattr(update.threading, "Timer", lambda delay, fn: timers.append(fn) or type("T", (), {"start": lambda self: None})())
     monkeypatch.setattr(update, "launch_args", ["--socket", "/tmp/x.sock"])
     r = client.post("/api/update/install", headers=HDR)
-    assert r.json() == {"restarting": True} and ran == [update.pip_command(PIP)] and timers == [update.restart]
+    assert r.json() == {"restarting": True} and ran == update.pip_commands(PIP) and timers == [update.restart]
     execs = []
     monkeypatch.setattr(update.os, "execv", lambda exe, argv: execs.append(argv))
     update.restart()
