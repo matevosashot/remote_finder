@@ -52,6 +52,7 @@ export function itemMenu(e, entry) {
     "-",
     single?.kind === "dir" ? { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(single.path), disabled: state.bookmarks.includes(single.path) } : null,
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(single?.kind === "dir" ? single.path : undefined) },
+    single?.kind === "dir" ? { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(single.path) } : null,
   ]);
 }
 
@@ -73,6 +74,7 @@ export function backgroundMenu(e) {
     { icon: "info", label: "Get Info", run: () => A.getInfo({ path: state.path, name: state.path, kind: "dir" }) },
     { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(state.path)) },
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(state.path) },
+    { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(state.path) },
     { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(state.path), disabled: state.bookmarks.includes(state.path) },
     "-",
     { label: "View As", submenu: ["icons", "list", "columns", "gallery"].map((v, i) => ({
@@ -93,6 +95,7 @@ export function bookmarkMenu(e, path) {
     { icon: "copy", label: "Copy Path", run: () => A.copyPaths("path", [{ path, name: path }]) },
     { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(path)) },
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(path) },
+    { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(path) },
     "-",
     { icon: "trash", label: "Remove from Sidebar", run: () => removeBookmark(path), disabled: !state.bookmarks.includes(path) },
   ]);
@@ -118,6 +121,7 @@ export function crumbMenu(e, path) {
     { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(path)) },
     "-",
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(path) },
+    { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(path) },
     { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(path), disabled: state.bookmarks.includes(path) },
   ]);
 }

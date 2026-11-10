@@ -10,6 +10,7 @@ const save = () => store.set("terminal", prefs);
 
 let panel, host, term, fit, ws, title, dockBtn;
 let pendingCd = null;
+let pendingRun = null; // a command to type once the shell is connected
 
 export function initTerminal(workspace) {
   panel = h("section", { class: "term-panel", hidden: true });
@@ -117,7 +118,8 @@ function connect(cwd) {
   ws.onmessage = (ev) => {
     if (typeof ev.data !== "string") return term.write(new Uint8Array(ev.data));
     const m = JSON.parse(ev.data);
-    if (m.t === "busy") toast("Terminal is busy (a program is running) — not changing directory", { kind: "warn" });
+    if (m.t === "busy" && m.c) toast(`Terminal is busy (a program is running). To attach, run: ${m.c}`, { kind: "warn", timeout: 10000 });
+    else if (m.t === "busy") toast("Terminal is busy (a program is running) — not changing directory", { kind: "warn" });
     else if (m.t === "exit") {
       term.write(`\r\n\x1b[2m[process exited with code ${m.code} — press Enter to restart]\x1b[0m\r\n`);
       ws = null;
@@ -126,6 +128,7 @@ function connect(cwd) {
   };
   ws.onopen = () => {
     if (pendingCd) { send({ t: "cd", p: pendingCd }); pendingCd = null; }
+    if (pendingRun) { send({ t: "run", c: pendingRun }); pendingRun = null; }
   };
   ws.onclose = () => { if (ws) { ws = null; term.write("\r\n\x1b[2m[disconnected]\x1b[0m\r\n"); } };
 }
@@ -152,6 +155,14 @@ export function toggleTerminal(show = panel.hidden, cwd = state.path) {
 export function cdTo(path) {
   if (!ws || ws.readyState !== 1) { pendingCd = path; return; }
   send({ t: "cd", p: path });
+  term.focus();
+}
+
+/** Type `cmd` into the terminal's shell (opening the panel); the server refuses if a program is running. */
+export function runInTerminal(cmd) {
+  if (panel.hidden) toggleTerminal(true);
+  if (!ws || ws.readyState !== 1) { pendingRun = cmd; return; }
+  send({ t: "run", c: cmd });
   term.focus();
 }
 

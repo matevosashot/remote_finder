@@ -270,6 +270,19 @@ export async function getInfo(entry = one() || { path: state.path, name: basenam
 
 // ---------------------------------------------------------------- terminal
 
+/** Start Claude Code (with Remote Control) in a new window of tmux session "claude", and attach the terminal to it. */
+export async function launchClaude(dir) {
+  const target = dir || (one()?.kind === "dir" ? one().path : state.path);
+  let r;
+  try { r = await post("/api/claude", { cwd: target }); } catch (e) { return toastError(e); }
+  toast(`Started Claude in tmux ${r.session}:${r.name}`, { timeout: 3000 });
+  // a grouped session: picks its own window without switching other clients attached to "claude",
+  // and goes away when detached
+  const t = await import("./terminal.js");
+  // quoted: zsh would expand a bare =claude into the path of the claude binary
+  t.runInTerminal(`tmux new-session -t '=${r.session}' \\; set-option destroy-unattached on \\; select-window -t '${r.window_id}'`);
+}
+
 export async function terminalHere(dir) {
   const target = dir || (one()?.kind === "dir" ? one().path : state.path);
   const t = await import("./terminal.js");

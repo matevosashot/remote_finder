@@ -156,6 +156,13 @@ async def terminal(ws: WebSocket, cwd: str = "~", cols: int = 120, rows: int = 3
                     # Ctrl-U clears any half-typed line; leading space keeps it out of history
                     write(b"\x15 cd -- " + shlex.quote(path).encode() + b"\r")
                     await ws.send_text(json.dumps({"t": "cd", "p": path}))
+            elif t == "run":
+                # type a command for the user (Launch Claude Here attaches to tmux this way)
+                cmd = m.get("c", "")
+                if not shell_idle():
+                    await ws.send_text(json.dumps({"t": "busy", "c": cmd}))
+                elif cmd and "\n" not in cmd and "\r" not in cmd:
+                    write(b"\x15 " + cmd.encode() + b"\r")
     except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
