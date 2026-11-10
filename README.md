@@ -15,12 +15,16 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 - **Finder views:** Icons (with a size slider and image thumbnails), List (sortable columns,
   folders expand inline), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay
   fast because every view is virtualized.
-- **Selection like Finder:** click, Ctrl/⌘-click, Shift-click ranges, rubber band in icon view,
+- **Selection like Finder:** click, Ctrl/⌘-click, Shift-click ranges, rubber band in icon and list
+  view (in list view, start on empty space or a row that isn't selected; a selected row drags),
   type-to-select, and Space for Quick Look.
 - **Right-click menu:** Open / Open in New Tab, Head… / Tail…, Copy Path / Name / Parent Path,
   Download (folders and multiple items stream as a zip), Analyze Disk Usage, Compress (zip at maximum compression by
   default, or `.tar.xz` / `.tar.zst`, saved next to the files), Extract Here, Get Info, Calculate
-  Size, Rename, Copy / Cut / Paste, Delete, Add to Sidebar, Open Terminal Here.
+  Size, Rename, Copy / Cut / Paste, Delete, Add to Sidebar, Open Terminal Here, Launch Claude Here.
+  Right-clicking a folder in the path bar gives the folder actions too.
+- **Launch Claude Here:** opens a window named after the folder in the tmux session `claude`
+  (created if missing) running `claude --remote-control`, and attaches the app's terminal to it.
 - **Open in a new tab:** syntax-highlighted code, a collapsible JSON tree, rendered Markdown,
   sortable CSV/TSV tables, Jupyter notebooks, images (arrow keys step through the folder), PDF,
   audio and video. Every page shows the full path, which you can copy or click through.
@@ -39,9 +43,14 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 - **Terminal:** a login shell in the browser (xterm.js), docked at the bottom or on the side,
   resizable; "Open Terminal Here" `cd`s the running shell.
 - **File operations:** new folder, rename in place, copy/move by clipboard or drag and drop, upload
-  files or whole folders from the desktop, with Finder's Replace / Keep Both / Skip dialog.
+  files or whole folders by dropping them from the desktop onto a folder, with Finder's Replace /
+  Keep Both / Skip dialog. Uploads, copies, moves and archives show speed and time left.
+- **Drag to download:** while you drag items, a Download slot appears in the sidebar; drop several
+  and pick one .zip (default) or separate files.
 - **Search:** typing filters the current folder, Enter searches subfolders, Ctrl+P is fuzzy quick
   open. No index is kept.
+- **Updates:** once a day, when you open the app, it checks main on GitHub; if there are new commits
+  a banner lists them, and Upgrade reinstalls with pip and restarts the server.
 - **Also:** bookmarks in the sidebar, disks with free space, back/forward history, every folder has
   its own URL (open it in a new tab), auto-refresh when a folder changes, dark mode.
 
@@ -118,7 +127,7 @@ Ctrl means ⌘ on a Mac.
 | Alt+1…4 | Icons / List / Columns / Gallery |
 | Ctrl+F or / | Filter / search |
 | Ctrl+P | Quick open |
-| Ctrl+Shift+G | Go to folder |
+| Ctrl+Shift+G | Go to a folder or file |
 | Ctrl+Shift+. | Show hidden files |
 | Ctrl+` | Terminal |
 
@@ -187,6 +196,7 @@ The page also lists all of its modules up front, so a first load fetches them in
 remote_finder/          FastAPI backend
   main.py               app assembly, static files, security middleware
   cli.py                the `remote_finder` command (--socket / --port)
+  service.py            install_service / uninstall_service (systemd units)
   serve.py              starts the server on the private Unix socket or a port
   assets.py             content-hashed asset URLs, import map and preloads for the pages
   security.py           Host/Origin/CSRF-header checks, headers for serving user files
@@ -200,6 +210,8 @@ remote_finder/          FastAPI backend
   search.py, thumbs.py  filename search and quick-open walk, image thumbnails
   terminal.py, jobs.py  pty terminal over WebSocket, background jobs with progress/cancel
   settings.py           bookmarks and view options
+  claude_api.py         Launch Claude Here (tmux window running claude --remote-control)
+  update.py             daily update check against GitHub, one-click pip upgrade
   static/               index/viewer/tail/editor/du pages, ES modules in js/, CSS, vendored libs
 tests/                  pytest API tests and Playwright UI tests
 scripts/                screenshot generator, vendor download
