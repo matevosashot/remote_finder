@@ -19,12 +19,12 @@ export function pickFiles(dir, folder = false) {
   input.click();
 }
 
-/** Read a DataTransfer (desktop drop), walking dropped folders. */
-export async function uploadDataTransfer(dt, dir) {
-  const entries = [...dt.items].map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
+/** Upload a desktop drop: FileSystem entries (walking dropped folders), or plain files without them.
+ * Both must be read from the DataTransfer during the drop event; it is empty afterwards. */
+export async function uploadEntries(entries, files, dir) {
   const out = [];
   if (!entries.length) {
-    for (const f of dt.files) out.push({ file: f, rel: f.name });
+    for (const f of files) out.push({ file: f, rel: f.name });
   } else {
     const walk = async (entry, prefix) => {
       if (entry.isFile) {

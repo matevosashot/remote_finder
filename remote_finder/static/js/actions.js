@@ -166,9 +166,12 @@ export async function transfer(op, paths, dest) {
 export async function dropOn(dest, dt, copy) {
   const paths = draggedPaths(dt);
   if (paths) return transfer(copy ? "copy" : "move", paths, dest);
-  if (dt.files?.length || dt.items?.length) {
-    const { uploadDataTransfer } = await import("./upload.js");
-    return uploadDataTransfer(dt, dest);
+  // a DataTransfer empties once the drop event returns, so take the entries before any await
+  const entries = [...(dt.items || [])].map((i) => i.webkitGetAsEntry?.()).filter(Boolean);
+  const files = [...(dt.files || [])];
+  if (entries.length || files.length) {
+    const { uploadEntries } = await import("./upload.js");
+    return uploadEntries(entries, files, dest);
   }
 }
 

@@ -339,6 +339,19 @@ def test_get_info_and_sidebar_bookmark(app, fixture_dir):
     app.wait_for_function("p => decodeURIComponent(location.hash.slice(1)) === p", arg=str(fixture_dir / "photos"))
 
 
+def test_desktop_drop_on_a_folder_uploads(app, fixture_dir):
+    target = item(app, fixture_dir / "sub")
+    target.evaluate("""el => {
+        const dt = new DataTransfer();
+        dt.items.add(new File(["dropped\\n"], "dropped.txt", { type: "text/plain" }));
+        for (const type of ["dragenter", "dragover", "drop"])
+            el.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        dt.items.clear();  // like a real drop: the DataTransfer is unreadable once the event returns
+    }""")
+    wait_until(lambda: (fixture_dir / "sub" / "dropped.txt").exists())
+    wait_until(lambda: (fixture_dir / "sub" / "dropped.txt").read_text() == "dropped\n")
+
+
 def test_upload_with_conflict(app, fixture_dir, tmp_path):
     src = tmp_path / "up1.txt"
     src.write_text("uploaded\n")
