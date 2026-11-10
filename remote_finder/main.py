@@ -10,14 +10,14 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.types import Receive, Scope, Send
 
-from . import archive_api, assets, claude_api, du_api, fs_api, jobs, ops_api, search, settings, terminal, text_api, thumbs
+from . import archive_api, assets, claude_api, du_api, fs_api, jobs, ops_api, search, settings, terminal, text_api, thumbs, update
 from .config import APP_NAME
 from .security import GuardMiddleware
 
 STATIC = assets.STATIC
 
 api = FastAPI(title=APP_NAME, docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json")
-for module in (fs_api, ops_api, thumbs, text_api, archive_api, du_api, jobs, search, settings, terminal, claude_api):
+for module in (fs_api, ops_api, thumbs, text_api, archive_api, du_api, jobs, search, settings, terminal, claude_api, update):
     api.include_router(module.router)
 
 

@@ -355,3 +355,11 @@ body.resizing-y, body.resizing-y * { cursor: ns-resize !important; user-select: 
 .ql-body .preview-img { max-height: calc(86vh - 40px); }
 .ql-body .preview-text { font-size: 13px; }
 .gallery-stage.preview, .ql-body.preview { min-height: 0; }
+
+/* ---------------------------------------------------------------- update banner */
+.update-banner { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; padding: 6px 12px; font-size: 13px; background: color-mix(in srgb, var(--accent) 12%, var(--bg)); border-bottom: 1px solid var(--border); }
+.update-banner > * { align-self: center; }
+.update-notes summary { cursor: default; color: var(--accent); }
+.update-notes ul { margin: 6px 0 2px; padding-left: 18px; max-height: 30vh; overflow: auto; }
+.update-notes code { color: var(--muted); }
+.update-status { color: var(--muted); }

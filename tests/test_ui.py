@@ -5,6 +5,7 @@ Skipped when Playwright or Chrome is missing. Any page error or console error fa
 
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -90,6 +91,9 @@ def browser():
         b.close()
 
 
+UPDATE_URL = re.compile(r"/api/update(\?|$)")
+
+
 @pytest.fixture
 def ctx(browser):
     c = browser.new_context(viewport={"width": 1400, "height": 900}, permissions=["clipboard-read", "clipboard-write"])
@@ -100,6 +104,7 @@ def ctx(browser):
         page.on("console", lambda m: errors.append(f"console: {m.text}") if m.type == "error" else None)
 
     c.on("page", watch)
+    c.route(UPDATE_URL, lambda route: route.fulfill(json={"enabled": False}))  # never ask GitHub from tests
     c.errors = errors
     yield c
     c.close()
@@ -432,6 +437,25 @@ def test_path_bar_context_menu(app, fixture_dir):
     app.locator(".crumb-sep").first.click(button="right")
     expect(app.locator(".menu .menu-item", has_text="Go to Folder or File")).to_be_visible()
     app.keyboard.press("Escape")
+
+
+def test_update_banner(ctx, server, fixture_dir):
+    fake = {"enabled": True, "kind": "pip", "behind": 2, "current": "a" * 40, "latest": "c" * 40,
+            "commits": [{"sha": "bbbbbbb", "message": "First change"}, {"sha": "ccccccc", "message": "Second change"}]}
+    page = ctx.new_page()
+    page.route(UPDATE_URL, lambda route: route.fulfill(json=fake))
+    page.goto(f"{server}/#{fixture_dir}")
+    banner = page.locator(".update-banner")
+    expect(banner).to_contain_text("2 new commits")
+    banner.locator("summary").click()
+    expect(banner.locator(".update-notes li")).to_have_count(2)
+    expect(banner.locator("button", has_text="Upgrade")).to_be_visible()
+    banner.locator("button", has_text="Later").click()
+    expect(banner).to_have_count(0)
+    page.reload()
+    expect(page.locator(".statusbar")).to_contain_text("items")
+    page.wait_for_timeout(300)
+    expect(page.locator(".update-banner")).to_have_count(0)  # dismissed until something newer than "c…"
 
 
 def test_upload_with_conflict(app, fixture_dir, tmp_path):

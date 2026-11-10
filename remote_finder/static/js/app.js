@@ -216,6 +216,7 @@ async function main() {
   }
   history.replaceState({ idx: 1 }, "", location.href);
   el.viewHost.querySelector(".view-bg")?.focus();
+  import("./update.js").then((u) => u.checkForUpdate(document.querySelector(".toolbar")));
 }
 
 main();

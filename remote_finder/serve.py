@@ -74,12 +74,15 @@ def tunnel_hint(path: str, user: str | None = None) -> str:
 
 def serve(socket_path: str | None = None, port: int | None = None) -> None:
     """Serve on `port` (127.0.0.1) if given, else on a private Unix socket (default path if None)."""
+    from . import update  # an upgrade restarts the server with the same flags
     opts = {"workers": 1, "access_log": False}
     if port:
+        update.launch_args = ["--port", str(port)]
         print(f"Serving on 127.0.0.1:{port}; every account on this machine can connect", file=sys.stderr)
         uvicorn.run("remote_finder.main:app", host="127.0.0.1", port=port, **opts)
         return
     path = os.path.abspath(os.path.expanduser(socket_path or DEFAULT_SOCKET))
+    update.launch_args = ["--socket", path]
     sock = bind_socket(path)
     print(f"Serving on {path}\n{tunnel_hint(path)}", file=sys.stderr)
     try:
