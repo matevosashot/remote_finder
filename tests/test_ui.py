@@ -166,6 +166,9 @@ def test_menu_copy_path_and_quicklook(app, fixture_dir):
     menu = app.locator(".menu").first
     for label in ("Open in New Tab", "Head…", "Copy Path", "Download", "Compress", "Get Info", "Open Terminal Here"):
         expect(menu.locator(".menu-item", has_text=label).first).to_be_visible()
+    # icons where there is an obvious one, none for the rest
+    expect(menu.locator(".menu-item", has_text="Download").first.locator(".menu-icon svg")).to_have_count(1)
+    expect(menu.locator(".menu-item", has_text="Copy Name").first.locator(".menu-icon svg")).to_have_count(0)
     menu.locator(".menu-item", has_text="Copy Path").first.click()
     expect(app.locator(".toast")).to_contain_text("Copied")
     assert app.evaluate("() => navigator.clipboard.readText()") == str(fixture_dir / "hello.py")

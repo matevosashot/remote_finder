@@ -281,13 +281,13 @@ function menu(d, e) {
     "-",
     dir && d.path !== S.focus ? { label: "Zoom In", run: () => zoom(d.path), shortcut: "Enter", disabled: unscanned } : null,
     S.focus !== root ? { label: "Zoom Out", run: zoomOut, shortcut: "⌫" } : null,
-    d.kind === "file" ? { label: "Open in Viewer", run: () => openTab(viewerUrl(d.path)) } : null,
-    d.path ? { label: dir ? "Open in Finder" : "Show in Finder", run: () => openTab(folderUrl(dir ? d.path : dirname(d.path))) } : null,
-    d.path ? { label: S.selected.size > 1 ? `Copy ${S.selected.size} Paths` : "Copy Path", run: copySelected, shortcut: `${K.alt}${K.mod}C` } : null,
+    d.kind === "file" ? { icon: "eye", label: "Open in Viewer", run: () => openTab(viewerUrl(d.path)) } : null,
+    d.path ? { icon: "tab", label: dir ? "Open in Finder" : "Show in Finder", run: () => openTab(folderUrl(dir ? d.path : dirname(d.path))) } : null,
+    d.path ? { icon: "copy", label: S.selected.size > 1 ? `Copy ${S.selected.size} Paths` : "Copy Path", run: copySelected, shortcut: `${K.alt}${K.mod}C` } : null,
     "-",
-    dir && !unscanned ? { label: "Rescan Folder", run: () => rescan(d.path) } : null,
+    dir && !unscanned ? { icon: "restart", label: "Rescan Folder", run: () => rescan(d.path) } : null,
     unscanned ? { label: "Scan This Folder Too", run: () => include(d) } : null,
-    dir ? { label: "Analyze in New Tab", run: () => openTab(duUrl(d.path)) } : null,
+    dir ? { icon: "chart", label: "Analyze in New Tab", run: () => openTab(duUrl(d.path)) } : null,
   ]);
 }
 

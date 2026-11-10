@@ -1,4 +1,5 @@
 // Popup menus with submenus (used by the file manager and the disk usage page).
+import { ICONS } from "./icons.js";
 import { h } from "./util.js";
 
 let current = null;
@@ -12,7 +13,7 @@ document.addEventListener("keydown", (e) => { if (current && e.key === "Escape")
 window.addEventListener("blur", closeMenu);
 window.addEventListener("resize", closeMenu);
 
-/** items: [{label, run, shortcut, disabled, submenu:[...], checked}] or "-" separators */
+/** items: [{label, run, shortcut, disabled, submenu:[...], checked, icon}] or "-" separators; icon names an ICONS entry */
 export function showMenu(x, y, items) {
   closeMenu();
   const menu = build(items);
@@ -23,6 +24,7 @@ export function showMenu(x, y, items) {
 
 function build(items) {
   const menu = h("div", { class: "menu", role: "menu" });
+  const withIcons = items.some((it) => it?.icon);
   let lastSep = true;
   for (const it of items) {
     if (!it) continue;
@@ -34,6 +36,7 @@ function build(items) {
     lastSep = false;
     const row = h("div", { class: `menu-item ${it.disabled ? "disabled" : ""} ${it.submenu ? "has-sub" : ""}`, role: "menuitem" },
       h("span", { class: "menu-check" }, it.checked ? "✓" : ""),
+      withIcons ? h("span", { class: "menu-icon", html: it.icon ? ICONS[it.icon] : "" }) : null,
       h("span", { class: "menu-label" }, it.label),
       h("span", { class: "menu-shortcut" }, it.submenu ? "›" : it.shortcut || ""));
     if (it.submenu) {

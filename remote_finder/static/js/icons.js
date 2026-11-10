@@ -46,6 +46,9 @@ export function iconFor(entry) {
   return doc(COLORS[cat] || COLORS.file, label, glyph);
 }
 
+// stroke icon on a 16px grid (menus)
+const S = (body) => `<svg viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${body}</g></svg>`;
+
 export const ICONS = {
   back: `<svg viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   fwd: `<svg viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -71,5 +74,22 @@ export const ICONS = {
   cd: `<svg viewBox="0 0 16 16"><path d="M2 8h9M8 4.5L11.5 8 8 11.5M14 3v10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   restart: `<svg viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   chevron: `<svg viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  open: S(`<path d="M3.5 1.8h5.5l3.5 3.5v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1z"/><path d="M9 1.8v3.5h3.5"/>`),
+  tab: S(`<path d="M9.5 2h4.5v4.5M14 2L7.5 8.5M12 9.5v3.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"/>`),
+  eye: S(`<path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z"/><circle cx="8" cy="8" r="2"/>`),
+  edit: S(`<path d="M10.5 2.5l3 3L6 13H3v-3zM9 4l3 3"/>`),
+  copy: S(`<rect x="5.5" y="5.5" width="8.5" height="8.5" rx="1.5"/><path d="M10.5 5.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6.5a1 1 0 0 0 1 1h2.5"/>`),
+  cut: S(`<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10l6-8M10 10L4 2"/>`),
+  paste: S(`<rect x="3" y="3" width="10" height="11.5" rx="1.5"/><path d="M6 1.8h4v2.4H6z"/>`),
+  trash: S(`<path d="M2.5 4h11M6 4V2.3h4V4M4 4l.8 9.6a1 1 0 0 0 1 .9h4.4a1 1 0 0 0 1-.9L12 4M6.8 6.8v4.8M9.2 6.8v4.8"/>`),
+  download: S(`<path d="M8 2v8.5M4.5 7L8 10.5 11.5 7M2 11v2.5h12V11"/>`),
+  zip: S(`<rect x="2.5" y="1.5" width="11" height="13" rx="1.5"/><path d="M8 1.5v1.5M8 4.5v1.5M8 7.5v1.5"/><rect x="6.8" y="10" width="2.4" height="2.5" rx=".6"/>`),
+  extract: S(`<path d="M2 7h12v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zM8 1.5v8M5.5 4L8 1.5 10.5 4"/>`),
+  info: S(`<circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4.3M8 4.6v.2"/>`),
+  rename: S(`<path d="M1.8 5h8.5v6H1.8zM12.8 2.5v11M11.3 2.5h3M11.3 13.5h3"/>`),
+  newfile: S(`<path d="M3.5 1.8h5.5l3.5 3.5v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1z"/><path d="M8 7.5v4.5M5.8 9.8h4.4"/>`),
+  chart: S(`<path d="M7 2.2A6 6 0 1 0 13.8 9H7z"/><path d="M9.2 1.6A5.5 5.5 0 0 1 14.4 6.8H9.2z"/>`),
+  fav: S(`<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>`),
+  claude: S(`<path d="M8 1.5v13M2.4 4.75l11.2 6.5M2.4 11.25l11.2-6.5"/>`),
   link: `<svg viewBox="0 0 16 16" class="badge-link"><rect width="16" height="16" rx="3" fill="#fff"/><path d="M5 11l6-6M6.5 5H11v4.5" fill="none" stroke="#222" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };

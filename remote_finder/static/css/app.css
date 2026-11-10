@@ -281,6 +281,9 @@ body.resizing-y, body.resizing-y * { cursor: ns-resize !important; user-select: 
 .menu-item:hover .menu-shortcut { color: var(--accent-text); }
 .menu-item.disabled { opacity: .4; }
 .menu-check { width: 16px; text-align: center; font-size: 11px; }
+.menu-icon { width: 14px; height: 14px; margin-right: 7px; flex: none; color: var(--muted); display: flex; }
+.menu-icon svg { width: 14px; height: 14px; }
+.menu-item:hover:not(.disabled) .menu-icon, .menu-item.has-sub:hover .menu-icon { color: var(--accent-text); }
 .menu-label { flex: 1; padding-right: 20px; }
 .menu-shortcut { color: var(--muted); font-size: 12px; }
 .menu-sep { height: 1px; background: var(--border); margin: 5px 8px; }
