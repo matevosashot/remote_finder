@@ -377,6 +377,21 @@ def test_list_band_select_and_drag_of_a_selection(app, fixture_dir):
     os.rename(fixture_dir / "photos" / "table.csv", fixture_dir / "table.csv")  # put it back for later tests
 
 
+def test_rate_meter_speed_and_time_left(app):
+    out = app.evaluate("""async () => {
+        const { rateMeter } = await import("/js/dialogs.js");
+        let t = 0;
+        const meter = rateMeter({ now: () => t });
+        const seen = [meter(0, 100e6)];
+        t = 500; seen.push(meter(5e6, 100e6));     // under a second of data: nothing yet
+        t = 2000; seen.push(meter(20e6, 100e6));   // 10 MB/s, 80 MB to go
+        t = 3000; seen.push(meter(20e6, 100e6));   // nothing moved since the last sample
+        return seen;
+    }""")
+    assert out[:3] == ["", "", "10.0 MB/s · 8 s left"]
+    assert out[3] == "6.67 MB/s · 12 s left"
+
+
 def test_upload_with_conflict(app, fixture_dir, tmp_path):
     src = tmp_path / "up1.txt"
     src.write_text("uploaded\n")

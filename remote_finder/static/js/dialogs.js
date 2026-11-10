@@ -1,6 +1,6 @@
 // Modal dialogs, toasts and job progress.
 import { post, waitJob } from "./api.js";
-import { fmtSize, h } from "./util.js";
+import { fmtDuration, fmtSize, h } from "./util.js";
 
 let toastBox;
 function box() {
@@ -38,6 +38,24 @@ export function progressToast(label, onCancel) {
   };
 }
 
+/**
+ * Speed and time left from the progress of the last few seconds: meter(done, total) returns
+ * "12.4 MB/s · 0:40 left", or "" until there is a second of data. `now` is a clock in ms.
+ */
+export function rateMeter({ window = 3000, now = () => performance.now() } = {}) {
+  const samples = [];
+  return (done, total) => {
+    const t = now();
+    samples.push([t, done]);
+    while (samples.length > 2 && t - samples[1][0] >= window) samples.shift();
+    const [t0, d0] = samples[0];
+    const secs = (t - t0) / 1000;
+    if (secs < 1 || done <= d0) return "";
+    const bps = (done - d0) / secs;
+    return `${fmtSize(Math.round(bps))}/s` + (total > done ? ` · ${fmtDuration((total - done) / bps)} left` : "");
+  };
+}
+
 /** Run a server job with a progress toast (shown only if it takes a moment). Resolves with the finished job. */
 export async function runJob(promise, { label } = {}) {
   let job;
@@ -51,8 +69,11 @@ export async function runJob(promise, { label } = {}) {
   const progress = progressToast(title, () => post(`/api/jobs/${job.id}/cancel`).catch(() => {}));
   const showTimer = setTimeout(progress.show, 400); // fast jobs: no flash
   try {
+    const meter = rateMeter();
     return await waitJob(job, (j) => {
-      const amount = j.total ? `${fmtSize(j.done)} of ${fmtSize(j.total)}` : j.kind === "du" ? fmtSize(j.done) : "";
+      const amount = !j.total ? (j.kind === "du" ? fmtSize(j.done) : "")
+        : j.unit === "items" ? `${j.done.toLocaleString()} of ${j.total.toLocaleString()}`
+        : [`${fmtSize(j.done)} of ${fmtSize(j.total)}`, meter(j.done, j.total)].filter(Boolean).join(" · ");
       progress.update(j.total ? j.done / j.total : null, amount + (j.message ? ` — ${j.message}` : ""));
     });
   } catch (e) {

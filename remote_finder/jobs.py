@@ -24,6 +24,7 @@ class Job:
     status: str = "running"  # running | done | error | cancelled
     done: int = 0            # progress units (bytes or items)
     total: int = 0           # 0 = unknown (indeterminate progress)
+    unit: str = "bytes"      # what done/total count: "bytes" or "items"
     message: str = ""
     result: Any = None
     error: str = ""

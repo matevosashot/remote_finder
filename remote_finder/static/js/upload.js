@@ -1,6 +1,6 @@
 // Uploads: file picker, folder picker, desktop drag-and-drop (files and folders), with progress.
 import { post, uploadFile } from "./api.js";
-import { progressToast, resolveConflicts, toast, toastError } from "./dialogs.js";
+import { progressToast, rateMeter, resolveConflicts, toast, toastError } from "./dialogs.js";
 import { refresh } from "./nav.js";
 import { state } from "./state.js";
 import { basename, fmtSize, h, join } from "./util.js";
@@ -82,9 +82,11 @@ export async function uploadAll(files, dir) {
   const ctrl = new AbortController();
   const progress = progressToast(`Uploading ${jobs.length} file(s) to “${basename(dir) || "/"}”`, () => ctrl.abort());
   progress.show();
+  const meter = rateMeter();
   const update = (name) => {
     const done = [...loaded.values()].reduce((a, b) => a + b, 0);
-    progress.update(total ? done / total : 1, `${fmtSize(done)} of ${fmtSize(total)}${name ? ` — ${name}` : ""}`);
+    const rate = meter(done, total);
+    progress.update(total ? done / total : 1, `${fmtSize(done)} of ${fmtSize(total)}${rate ? ` · ${rate}` : ""}${name ? ` — ${name}` : ""}`);
   };
 
   let failed = 0, i = 0;

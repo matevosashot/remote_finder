@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import stat
@@ -67,7 +68,7 @@ def delete(body: PathsBody) -> dict:
         raise HTTPException(400, "refusing to delete /")
 
     def work(job: jobs.Job):
-        job.total = len(paths)
+        job.total, job.unit = len(paths), "items"
         for p in paths:
             remove_path(p)
             job.advance(1, os.path.basename(p))
@@ -135,8 +136,21 @@ def transfer(body: TransferBody) -> dict:
         if is_within(dest, s):
             raise HTTPException(400, f"cannot {body.op} “{os.path.basename(s)}” into itself")
 
+    dest_dev = os.stat(dest).st_dev
+
+    def crosses(src: str) -> bool:
+        """A move to another filesystem is a copy plus delete; within one it is a rename."""
+        try:
+            return os.lstat(src).st_dev != dest_dev
+        except OSError:
+            return False
+
     def work(job: jobs.Job):
-        job.total = sum(tree_size(s) for s in sources) if body.op == "copy" else len(sources)
+        copied = sources if body.op == "copy" else [s for s in sources if crosses(s)]
+        if copied:
+            job.total = sum(tree_size(s) for s in copied)  # bytes; renames are instant and count 0
+        else:
+            job.total, job.unit = len(sources), "items"
         placed = []
         for src in sources:
             name = os.path.basename(src)
@@ -147,9 +161,19 @@ def transfer(body: TransferBody) -> dict:
                 continue
             if body.op == "copy":
                 _copy(src, target, job)
+            elif crosses(src):
+                _copy(src, target, job)
+                remove_path(src)
             else:
-                shutil.move(src, target)
-                job.advance(1, name)
+                try:
+                    os.rename(src, target)
+                except OSError as e:
+                    if e.errno != errno.EXDEV:
+                        raise
+                    _copy(src, target, job)  # a mount inside the source: the same filesystem, but no rename
+                    remove_path(src)
+                if job.unit == "items":
+                    job.advance(1, name)
             placed.append(target)
         return {"paths": placed}
 

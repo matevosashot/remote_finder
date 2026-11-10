@@ -32,6 +32,14 @@ export function fmtSize(n) {
   return `${n >= 100 ? n.toFixed(0) : n >= 10 ? n.toFixed(1) : n.toFixed(2)} ${units[i]}`;
 }
 
+/** Seconds as "45 s", "3:07" or "1:02:07". */
+export function fmtDuration(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return `${sec} s`;
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = String(sec % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
 const dtFull = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const dtTime = new Intl.DateTimeFormat(undefined, { timeStyle: "short" });
 export function fmtDate(sec) {

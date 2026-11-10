@@ -1,6 +1,10 @@
-import os
-import zipfile
 import io
+import os
+import shutil
+import tempfile
+import zipfile
+
+import pytest
 
 from conftest import HDR, wait_job
 
@@ -96,6 +100,32 @@ def test_transfer_conflicts(client, tree):
     assert j["status"] == "done" and (dest / "sub" / "c.md").exists() and not (tree / "sub").exists()
     r = client.post("/api/transfer", json={"op": "move", "sources": [str(dest)], "dest": str(dest / "sub")}, headers=HDR)
     assert r.status_code == 400  # into itself
+
+
+def test_transfer_progress_units(client, tree):
+    """Copies count bytes; a move within one filesystem is a rename and counts items."""
+    dest = tree / "units"
+    dest.mkdir()
+    j = wait_job(client, client.post("/api/transfer", json={"op": "copy", "sources": [str(tree / "a.txt")], "dest": str(dest)}, headers=HDR).json())
+    assert j["unit"] == "bytes" and j["done"] == j["total"] == (tree / "a.txt").stat().st_size
+    j = wait_job(client, client.post("/api/transfer", json={"op": "move", "sources": [str(dest / "a.txt")], "dest": str(tree / "sub")},
+                                     headers=HDR).json())
+    assert j["unit"] == "items" and j["done"] == j["total"] == 1
+
+
+def test_move_to_another_filesystem_reports_bytes(client, tree):
+    shm = "/dev/shm"
+    if not os.access(shm, os.W_OK) or os.stat(shm).st_dev == os.stat(tree).st_dev:
+        pytest.skip("needs a writable second filesystem at /dev/shm")
+    other = tempfile.mkdtemp(dir=shm)
+    try:
+        src = tree / "b.py"
+        size = src.stat().st_size
+        j = wait_job(client, client.post("/api/transfer", json={"op": "move", "sources": [str(src)], "dest": other}, headers=HDR).json())
+        assert j["status"] == "done" and j["unit"] == "bytes" and j["done"] == j["total"] == size
+        assert not src.exists() and os.path.getsize(os.path.join(other, "b.py")) == size
+    finally:
+        shutil.rmtree(other, ignore_errors=True)
 
 
 def test_upload(client, tree):
