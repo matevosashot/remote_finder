@@ -17,6 +17,7 @@ body.page { display: flex; flex-direction: column; height: 100vh; overflow: hidd
 .page-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .page-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .page-scroll { flex: 1; overflow: auto; }
+.page-scroll:has(> .full-frame) { display: flex; flex-direction: column; overflow: hidden; }
 .page-msg { margin: auto; padding: 40px; text-align: center; color: var(--muted); }
 .btn.on { background: var(--sel-inactive); }
 .seg-text { display: flex; background: var(--hover); border-radius: 7px; padding: 2px; }

@@ -566,6 +566,12 @@ def test_viewer_html_render_is_sandboxed(ctx, server, fixture_dir):
     frame = page.frame_locator("iframe.full-frame")
     expect(frame.locator("#x")).to_have_text("static")
     assert page.title() == "page.html"  # the script ran inside the sandbox, not in our page
+    assert page.locator("iframe.full-frame").bounding_box()["height"] > 400  # fills the page, not the 150px default
+    with page.expect_popup() as tab:
+        page.locator("button", has_text="Open Rendered in New Tab").click()
+    expect(tab.value.locator("#x")).to_have_text("static")
+    page.locator(".seg-btn", has_text="Source").click()
+    expect(page.locator("button", has_text="Open Rendered in New Tab")).to_have_count(0)
 
 
 def test_viewer_big_file_loads_in_chunks(ctx, server, fixture_dir):

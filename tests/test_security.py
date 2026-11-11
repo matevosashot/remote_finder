@@ -5,6 +5,7 @@ from starlette.websockets import WebSocketDisconnect
 from conftest import HDR
 from remote_finder.config import CSRF_HEADER
 from remote_finder.main import app
+from remote_finder.security import RENDER_SANDBOX
 
 
 def test_bad_host_rejected():
@@ -46,7 +47,7 @@ def test_active_content_sandboxed(client, tmp_path):
     assert r.headers["content-type"].startswith("text/plain") and r.headers["content-security-policy"] == "sandbox"
     assert r.headers["x-content-type-options"] == "nosniff"
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.html"), "render": 1})
-    assert r.headers["content-type"].startswith("text/html") and r.headers["content-security-policy"] == "sandbox allow-scripts"
+    assert r.headers["content-type"].startswith("text/html") and r.headers["content-security-policy"] == "sandbox " + RENDER_SANDBOX
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.svg")})
     assert r.headers["content-type"].startswith("text/plain")
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.pdf")})

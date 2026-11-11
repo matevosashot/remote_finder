@@ -79,6 +79,8 @@ class GuardMiddleware:
 
 
 # Types that can run script when rendered from our origin; served as text unless sandboxed render.
+# A rendered page runs scripts in an opaque origin: it can't read our API, cookies or storage.
+RENDER_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"
 ACTIVE_TYPES = {"text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml"}
 
 
@@ -89,7 +91,7 @@ def raw_headers(media_type: str, render: bool) -> tuple[str, dict[str, str]]:
     if base == "application/pdf":
         return media_type, headers  # Chrome's PDF viewer refuses to load in a sandboxed document
     if base in ACTIVE_TYPES and render:
-        headers["Content-Security-Policy"] = "sandbox allow-scripts"
+        headers["Content-Security-Policy"] = f"sandbox {RENDER_SANDBOX}"
     else:
         if base in ACTIVE_TYPES:
             media_type = "text/plain"

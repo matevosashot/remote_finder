@@ -10,6 +10,8 @@ const params = new URLSearchParams(location.search);
 let path = params.get("path");
 const body = $("#body");
 const RAW_LIMIT = 5 << 20; // above this, text loads in chunks
+// matches the server's CSP for rendered HTML: no allow-same-origin, so the page can't reach our API
+const RENDER_SANDBOX = "allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads";
 
 let wrap = store.get("viewer.wrap", false);
 let highlight = store.get("viewer.highlight", true);
@@ -60,8 +62,11 @@ async function load() {
   if (cat === "video") return body.replaceChildren(h("video", { class: "media", src: rawUrl(path), controls: true, autoplay: false }));
   if (cat === "audio") return body.replaceChildren(h("div", { class: "page-msg" }, h("audio", { src: rawUrl(path), controls: true })));
   if (cat === "pdf") return body.replaceChildren(h("iframe", { class: "full-frame", src: rawUrl(path), title: st.name }));
-  if (ext === "html" || ext === "htm") return showToggle(st, [["source", "Source"], ["render", "Render (sandboxed)"]], "source", (m, box) =>
-    m === "render" ? box.append(h("iframe", { class: "full-frame", sandbox: "allow-scripts", src: rawUrl(path, { render: 1 }) })) : showText(st, box));
+  if (ext === "html" || ext === "htm") return showToggle(st, [["source", "Source"], ["render", "Render (sandboxed)"]], "source", (m, box) => {
+    const page = rawUrl(path, { render: 1 });
+    actions(st, m === "render" ? [h("button", { class: "btn small", title: "The page's own tab, still sandboxed", onclick: () => openTab(page) }, "Open Rendered in New Tab")] : []);
+    return m === "render" ? box.append(h("iframe", { class: "full-frame", sandbox: RENDER_SANDBOX, src: page })) : showText(st, box);
+  });
 
   const small = st.size <= RAW_LIMIT;
   if (small && (ext === "md" || ext === "markdown")) return showToggle(st, [["rendered", "Rendered"], ["source", "Source"]], "rendered", async (m, box) =>
