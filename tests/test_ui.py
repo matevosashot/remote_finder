@@ -242,6 +242,25 @@ def test_expand_and_type_select(app, fixture_dir):
     assert selected_names(app) == ["table.csv"]
 
 
+def test_expanded_folders_survive_reload_and_expand_all(app, fixture_dir):
+    deeper = item(app, fixture_dir / "sub" / "deeper")
+    item(app, fixture_dir / "sub").locator(".disclosure").click()
+    expect(deeper).to_be_visible()
+    app.reload()
+    expect(deeper).to_be_visible()
+    app.locator(".list-scroll").click(position={"x": 500, "y": 700}, button="right")
+    app.locator(".menu-item", has_text="Collapse All Folders").click()
+    expect(deeper).to_have_count(0)
+    app.reload()
+    expect(item(app, fixture_dir / "hello.py")).to_be_visible()
+    expect(deeper).to_have_count(0)
+    app.locator(".list-scroll").click(position={"x": 500, "y": 700}, button="right")
+    app.locator(".menu-item", has_text="Expand All Folders").click()
+    expect(deeper).to_be_visible()
+    expect(item(app, fixture_dir / "photos" / "red.png")).to_be_visible()
+    expect(item(app, fixture_dir / "sub" / "deeper" / "deepnote.txt")).to_have_count(0)  # one level per click
+
+
 def test_file_operations(app, fixture_dir):
     # new folder + inline rename
     app.locator(".list-scroll").click(position={"x": 500, "y": 700})

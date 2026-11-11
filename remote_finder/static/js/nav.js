@@ -2,7 +2,7 @@
 import { folderUrl, get, streamNdjson } from "./api.js";
 import { toastError } from "./dialogs.js";
 import { emit, state } from "./state.js";
-import { childToward, collator, debounce, dirname, join } from "./util.js";
+import { childToward, collator, debounce, dirname, join, store } from "./util.js";
 
 export function decorate(entries, dir, depth = 0) {
   return entries.map((e) => ({ ...e, path: e.path || join(dir, e.name), depth }));
@@ -81,6 +81,8 @@ export async function navigate(path, opts = {}) {
   state.filter = "";
   state.expanded.clear();
   state.childCache.clear();
+  const reopen = savedExpanded(listing.path);
+  for (const p of reopen) state.expanded.add(p);
   let select = opts.select ? [].concat(opts.select) : [];
   // Going up: select the folder we came from (Finder behaviour)
   const cameFrom = childToward(listing.path, prev);
@@ -100,6 +102,7 @@ export async function navigate(path, opts = {}) {
   emit("path");
   emit("selection");
   if (state.focus) emit("reveal", state.focus);
+  if (reopen.length) loadChildren(reopen, token);
 }
 
 /** Up one level from where we are going, so a quick double Mod+Up climbs two levels. */
@@ -162,8 +165,52 @@ export async function toggleExpand(path, open = !state.expanded.has(path)) {
   } else {
     for (const p of [...state.expanded]) if (p === path || p.startsWith(path + "/")) state.expanded.delete(p);
   }
+  saveExpanded();
   rebuildItems();
   emit("selection");
+}
+
+/** Expand every visible collapsed folder by one level; repeat to go deeper. */
+export async function expandAll() {
+  const dirs = state.items.filter((e) => e.kind === "dir" && !state.expanded.has(e.path)).map((e) => e.path);
+  for (const p of dirs) state.expanded.add(p);
+  rebuildItems();
+  await loadChildren(dirs, loadToken);
+  saveExpanded();
+}
+
+export function collapseAll() {
+  state.expanded.clear();
+  state.childCache.clear();
+  saveExpanded();
+  rebuildItems();
+  emit("selection");
+}
+
+/** Fetch the listings of expanded folders, a few at a time; folders that fail are collapsed. */
+async function loadChildren(paths, token) {
+  for (let i = 0; i < paths.length; i += 16) {
+    const batch = paths.slice(i, i + 16);
+    const lists = await Promise.all(batch.map((path) => get("/api/list", { path }).then((l) => l.entries, () => null)));
+    if (token !== loadToken) return;
+    batch.forEach((p, j) => (lists[j] ? state.childCache.set(p, lists[j]) : state.expanded.delete(p)));
+    rebuildItems();
+    emit("selection");
+  }
+}
+
+// Expanded folders are remembered per folder (most recent first), so a reload or a revisit reopens them.
+const EXPANDED_KEY = "expanded";
+const EXPANDED_FOLDERS = 100;
+
+function savedExpanded(dir) {
+  return (store.get(EXPANDED_KEY, {})[dir] || []).filter((p) => p.startsWith(dir === "/" ? "/" : dir + "/"));
+}
+
+function saveExpanded() {
+  const { [state.path]: _, ...rest } = store.get(EXPANDED_KEY, {});
+  const all = state.expanded.size ? { [state.path]: [...state.expanded], ...rest } : rest;
+  store.set(EXPANDED_KEY, Object.fromEntries(Object.entries(all).slice(0, EXPANDED_FOLDERS)));
 }
 
 // ---------------------------------------------------------------- search mode

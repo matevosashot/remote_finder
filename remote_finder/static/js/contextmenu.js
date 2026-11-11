@@ -80,6 +80,8 @@ export function backgroundMenu(e) {
     { label: "View As", submenu: ["icons", "list", "columns", "gallery"].map((v, i) => ({
       label: v[0].toUpperCase() + v.slice(1), checked: state.view === v, shortcut: `${K.alt}${i + 1}`, run: () => setOption("view", v) })) },
     { label: "Sort By", submenu: ["name", "kind", "mtime", "size"].map(sortItem) },
+    state.view === "list" && !state.search ? { label: "Expand All Folders", run: () => import("./nav.js").then((n) => n.expandAll()) } : null,
+    state.view === "list" && !state.search ? { label: "Collapse All Folders", run: () => import("./nav.js").then((n) => n.collapseAll()), disabled: !state.expanded.size } : null,
     { label: "Folders on Top", checked: state.foldersFirst, run: () => setOption("foldersFirst", !state.foldersFirst) },
     { label: "Show Hidden Files", checked: state.showHidden, run: () => setOption("showHidden", !state.showHidden), shortcut: `${K.mod}${K.shift}.` },
     { label: "Show Preview", checked: state.preview, run: () => setOption("preview", !state.preview) },
