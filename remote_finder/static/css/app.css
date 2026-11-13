@@ -127,6 +127,12 @@ button { font: inherit; color: inherit; }
 .col-name { flex: 1 1 320px; min-width: 160px; display: flex; align-items: center; gap: 5px; }
 .col-mtime { flex: 0 0 190px; }
 .col-size { flex: 0 0 90px; text-align: right; }
+.list-header .col-size { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.sizes-btn { display: inline-flex; padding: 1px; margin-right: auto; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
+.sizes-btn:hover { background: var(--border-soft); color: var(--text); }
+.sizes-btn svg { width: 13px; height: 13px; }
+.sizes-btn.busy { color: var(--accent); animation: spin 1.2s linear infinite; }
+.row .sizing { color: var(--muted); }
 .col-kind { flex: 0 0 140px; }
 .col-where { flex: 0 1 280px; color: var(--muted); direction: rtl; text-align: left; }
 .row .col-mtime, .row .col-size, .row .col-kind { color: var(--muted); }
@@ -342,6 +348,7 @@ body.resizing-y, body.resizing-y * { cursor: ns-resize !important; user-select: 
 .bar.indeterminate .fill { width: 30% !important; animation: indet 1.2s infinite linear; }
 @keyframes indet { from { transform: translateX(-100%); } to { transform: translateX(330%); } }
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 .drag-ghost { position: fixed; top: -100px; background: var(--accent); color: #fff; padding: 3px 10px; border-radius: 10px; font-size: 12px; }
 
 /* quick look */

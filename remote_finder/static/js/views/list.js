@@ -1,10 +1,11 @@
 // List view: sortable columns, disclosure triangles, virtualized rows.
-import { toggleExpand } from "../nav.js";
+import { calcFolderSizes, toggleExpand } from "../nav.js";
 import { focusIndex, indexOf, moveTo } from "../selection.js";
 import { sortBy } from "../settings.js";
 import { state } from "../state.js";
 import { dirname, fmtDate, fmtSize, h, kindLabel, mod } from "../util.js";
 import { VirtualList } from "../virtual.js";
+import { ICONS } from "../icons.js";
 import { bindBand, iconEl, itemAttrs, itemClasses } from "./common.js";
 
 const ROW = 24;
@@ -50,8 +51,19 @@ export class ListView {
     this.header.replaceChildren(...this.columns().map(([key, label]) => h("div", {
       class: `col col-${key} ${state.sort.key === key ? "sorted" : ""}`,
       onclick: () => key !== "where" && sortBy(key),
-    }, label, state.sort.key === key ? h("span", { class: "sort-arrow" }, state.sort.dir > 0 ? "▲" : "▼") : null)));
+    }, key === "size" ? this.sizesButton() : null, label,
+    state.sort.key === key ? h("span", { class: "sort-arrow" }, state.sort.dir > 0 ? "▲" : "▼") : null)));
     this.root.classList.toggle("searching", !!state.search);
+  }
+
+  sizesButton() {
+    const busy = !!state.sizing;
+    return h("button", {
+      class: `col-btn sizes-btn ${busy ? "busy" : ""}`,
+      title: busy ? `Stop calculating folder sizes (${state.sizing.size} left)` : "Calculate folder sizes",
+      html: ICONS.chart,
+      onclick: (e) => { e.stopPropagation(); calcFolderSizes(); },
+    });
   }
 
   render() {
@@ -66,7 +78,7 @@ export class ListView {
     const tri = e.kind === "dir" && !state.search
       ? h("span", { class: `disclosure ${state.expanded.has(e.path) ? "open" : ""}` }, "")
       : h("span", { class: "disclosure none" });
-    const size = e.kind === "dir" ? (state.sizes.has(e.path) ? fmtSize(state.sizes.get(e.path)) : "--") : e.kind === "file" ? fmtSize(e.size) : "";
+    const size = e.kind === "dir" ? this.dirSize(e.path) : e.kind === "file" ? fmtSize(e.size) : "";
     el.append(
       h("div", { class: "col col-name", style: indent }, tri, e.kind === "placeholder" ? null : iconEl(e, 0), h("span", { class: "name" }, e.name)),
       h("div", { class: "col col-mtime" }, e.kind === "placeholder" ? "" : fmtDate(e.mtime)),
@@ -77,6 +89,15 @@ export class ListView {
     if (e.error) el.title = e.error;
     itemClasses(el, e);
     return el;
+  }
+
+  /** A folder's size: known, being calculated (bytes so far, muted), or "--". */
+  dirSize(path) {
+    if (state.sizing?.has(path)) {
+      const n = state.sizing.get(path);
+      return h("span", { class: "sizing", title: "Calculating…" }, n ? `${fmtSize(n)}…` : "…");
+    }
+    return state.sizes.has(path) ? fmtSize(state.sizes.get(path)) : "--";
   }
 
   updateSelection() {

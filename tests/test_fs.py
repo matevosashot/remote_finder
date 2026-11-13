@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -188,6 +189,21 @@ def test_du(client, tree):
     assert j["status"] == "done"
     # a.txt counted once despite the hardlink; symlinks count their own (tiny) size
     assert j["result"]["files"] >= 4
+
+
+def test_sizes_stream(client, tmp_path):
+    for name, n in (("small", 10), ("big", 5000)):
+        (tmp_path / name / "inner").mkdir(parents=True)
+        (tmp_path / name / "inner" / "f").write_bytes(b"x" * n)
+    os.link(tmp_path / "big" / "inner" / "f", tmp_path / "big" / "hardlink")
+    paths = [str(tmp_path / "small"), str(tmp_path / "big"), str(tmp_path / "missing")]
+    r = client.post("/api/sizes", json={"paths": paths}, headers=HDR)
+    assert r.status_code == 200
+    lines = [json.loads(line) for line in r.text.splitlines()]
+    done = {m["path"]: m for m in lines if "path" in m}
+    assert done[paths[0]]["size"] == 10 and done[paths[1]]["size"] == 5000  # the hardlink counts once
+    assert done[paths[2]]["error"] == "not a folder"
+    assert client.post("/api/sizes", json={"paths": paths}).status_code == 403  # CSRF header required
 
 
 def test_job_endpoints_validate_body(client):

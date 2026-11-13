@@ -261,6 +261,18 @@ def test_expanded_folders_survive_reload_and_expand_all(app, fixture_dir):
     expect(item(app, fixture_dir / "sub" / "deeper" / "deepnote.txt")).to_have_count(0)  # one level per click
 
 
+def test_folder_sizes_from_the_size_header(app, fixture_dir):
+    sub, photos = item(app, fixture_dir / "sub"), item(app, fixture_dir / "photos")
+    expect(sub.locator(".col-size")).to_have_text("--")
+    app.locator(".list-header .col-size").click()  # sort by size first, then calculate
+    app.locator(".sizes-btn").click()
+    expect(photos.locator(".col-size")).not_to_have_text("--")
+    expect(sub.locator(".col-size")).to_have_text("5 bytes")
+    expect(app.locator(".sizes-btn")).not_to_have_class(re.compile("busy"))
+    names = app.evaluate("() => [...document.querySelectorAll('.list-scroll .row .name')].map(e => e.textContent)")
+    assert names.index("photos") < names.index("sub")  # largest first: images beat a 5-byte note
+
+
 def test_file_operations(app, fixture_dir):
     # new folder + inline rename
     app.locator(".list-scroll").click(position={"x": 500, "y": 700})

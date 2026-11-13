@@ -60,9 +60,10 @@ export const send = (method, path, body, { keepalive = false } = {}) =>
 export const post = (path, body) => send("POST", path, body);
 export const put = (path, body, opts) => send("PUT", path, body, opts);
 
-/** GET an NDJSON stream; onBatch(messages) runs per network chunk and may return false to stop. */
-export async function streamNdjson(path, params, { signal, onBatch }) {
-  const res = await fetch(`${path}?${qs(params)}`, { signal });
+/** GET an NDJSON stream (POST when `body` is given); onBatch(messages) runs per network chunk and may return false to stop. */
+export async function streamNdjson(path, params, { signal, onBatch, body }) {
+  const res = await fetch(`${path}?${qs(params)}`, body === undefined ? { signal }
+    : { signal, method: "POST", headers: { "Content-Type": "application/json", ...CSRF }, body: JSON.stringify(body) });
   if (!res.ok) await handle(res);
   const reader = res.body.getReader();
   const dec = new TextDecoder();

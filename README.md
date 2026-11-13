@@ -13,8 +13,11 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 ## Features
 
 - **Finder views:** Icons (with a size slider and image thumbnails), List (sortable columns,
-  folders expand inline), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay
-  fast because every view is virtualized.
+  folders expand inline and stay expanded across reloads; Expand/Collapse All on the background
+  menu), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay fast because every
+  view is virtualized.
+- **Folder sizes in list view:** the button in the Size column header calculates every listed
+  folder's size, several at once; when sorted by size, rows re-sort as each folder finishes.
 - **Selection like Finder:** click, Ctrl/⌘-click, Shift-click ranges, rubber band in icon and list
   view (in list view, start on empty space or a row that isn't selected; a selected row drags),
   type-to-select, and Space for Quick Look.
@@ -202,7 +205,7 @@ remote_finder/          FastAPI backend
   security.py           Host/Origin/CSRF-header checks, headers for serving user files
   config.py             app name, config/cache dirs, CSRF header name
   fsutil.py, models.py  shared filesystem helpers and request bodies
-  fs_api.py             read-only: list, stat, raw, zip download, disks, folder size
+  fs_api.py             read-only: list, stat, raw, zip download, disks, folder sizes
   ops_api.py            mkdir, rename, delete, copy/move, upload, save
   archive_api.py        compress, extract, list archive contents
   text_api.py           head/tail/line/byte/grep on files of any size, WebSocket follow

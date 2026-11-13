@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import stat
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from typing import Callable
 from urllib.parse import quote
 
 import psutil
@@ -14,7 +18,7 @@ from zipstream import ZIP_DEFLATED, ZipStream
 
 from . import jobs
 from .fsutil import SKIP_DIRS, describe, dir_entry, group_name, guess_mime, norm, os_error, user_name
-from .models import PathBody
+from .models import PathBody, PathsBody
 from .security import raw_headers
 
 router = APIRouter(prefix="/api")
@@ -131,44 +135,97 @@ def disks() -> list[dict]:
     return out
 
 
+def folder_size(path: str, tick: Callable[[int, int], None] = lambda total, files: None) -> dict:
+    """Apparent size of a folder: hardlinks once, no symlinks, no pseudo filesystems.
+    tick(total, files) runs after each directory and may raise to stop."""
+    total = files = dirs = errors = 0
+    seen: set[tuple[int, int]] = set()
+    stack = [path]
+    while stack:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for de in it:
+                    try:
+                        st = de.stat(follow_symlinks=False)
+                    except OSError:
+                        errors += 1
+                        continue
+                    if de.is_dir(follow_symlinks=False):
+                        if de.path not in SKIP_DIRS:
+                            stack.append(de.path)
+                            dirs += 1
+                        continue
+                    if st.st_nlink > 1:
+                        key = (st.st_dev, st.st_ino)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                    total += st.st_size
+                    files += 1
+        except OSError:
+            errors += 1
+        tick(total, files)
+    return {"path": path, "size": total, "files": files, "dirs": dirs, "errors": errors}
+
+
 @router.post("/du")
 def du(body: PathBody) -> dict:
-    """Folder size as a job: apparent size, hardlinks once, no symlinks, no pseudo filesystems."""
+    """Folder size as a job (see folder_size)."""
     path = norm(body.path)
     if not os.path.isdir(path):
         raise HTTPException(400, "not a folder")
 
     def work(job: jobs.Job):
-        total = files = dirs = errors = 0
-        seen: set[tuple[int, int]] = set()
-        stack = [path]
-        while stack:
-            d = stack.pop()
-            try:
-                with os.scandir(d) as it:
-                    for de in it:
-                        try:
-                            st = de.stat(follow_symlinks=False)
-                        except OSError:
-                            errors += 1
-                            continue
-                        if de.is_dir(follow_symlinks=False):
-                            if de.path not in SKIP_DIRS:
-                                stack.append(de.path)
-                                dirs += 1
-                            continue
-                        if st.st_nlink > 1:
-                            key = (st.st_dev, st.st_ino)
-                            if key in seen:
-                                continue
-                            seen.add(key)
-                        total += st.st_size
-                        files += 1
-            except OSError:
-                errors += 1
+        def tick(total: int, files: int):
             job.done = total
             job.message = f"{files:,} files"
             job.check()
-        return {"path": path, "size": total, "files": files, "dirs": dirs, "errors": errors}
+        return folder_size(path, tick)
 
     return jobs.start("du", f"Calculating size of {os.path.basename(path) or '/'}", work).public()
+
+
+class _Stopped(Exception):
+    pass
+
+
+@router.post("/sizes")
+def sizes(body: PathsBody):
+    """NDJSON stream of folder sizes, several folders at a time, each line as soon as its folder is done.
+    Lines: {path, size, files, errors} or {path, error}; {partial: {path: bytes so far}} about once a second."""
+    paths = list(dict.fromkeys(norm(p) for p in body.paths))
+    stop = threading.Event()
+    running: dict[str, int] = {}
+
+    def one(path: str) -> dict | None:
+        def tick(total: int, files: int):
+            if stop.is_set():
+                raise _Stopped
+            running[path] = total
+        running[path] = 0
+        try:
+            if not os.path.isdir(path):
+                return {"path": path, "error": "not a folder"}
+            return folder_size(path, tick)
+        except _Stopped:
+            return None
+        finally:
+            running.pop(path, None)
+
+    def gen():
+        pool = ThreadPoolExecutor(4, thread_name_prefix="sizes")
+        try:
+            pending = {pool.submit(one, p) for p in paths}
+            while pending:
+                done, pending = wait(pending, timeout=1, return_when=FIRST_COMPLETED)
+                for f in done:
+                    if (r := f.result()) is not None:
+                        yield json.dumps(r) + "\n"
+                if pending and running:
+                    yield json.dumps({"partial": dict(running)}) + "\n"  # also notices a closed connection
+        finally:
+            stop.set()
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")

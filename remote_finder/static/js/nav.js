@@ -213,6 +213,47 @@ function saveExpanded() {
   store.set(EXPANDED_KEY, Object.fromEntries(Object.entries(all).slice(0, EXPANDED_FOLDERS)));
 }
 
+// ---------------------------------------------------------------- folder sizes
+
+let sizingAbort = null;
+
+/** Calculate the size of every folder in the list; rows re-sort as each one finishes. A second call stops. */
+export async function calcFolderSizes() {
+  if (sizingAbort) return sizingAbort.abort();
+  const paths = state.items.filter((e) => e.kind === "dir").map((e) => e.path);
+  if (!paths.length) return;
+  const ctrl = (sizingAbort = new AbortController());
+  const dir = state.path;
+  state.sizing = new Map(paths.map((p) => [p, null]));
+  rebuildItems();
+  const flush = debounce(() => state.sizing && rebuildItems(), 150);
+  const errors = [];
+  try {
+    await streamNdjson("/api/sizes", {}, {
+      signal: ctrl.signal,
+      body: { paths },
+      onBatch: (msgs) => {
+        if (state.path !== dir) return false; // left the folder: stop the server's work
+        for (const m of msgs) {
+          if (m.partial) for (const [p, n] of Object.entries(m.partial)) state.sizing.set(p, n);
+          else {
+            state.sizing.delete(m.path);
+            if (m.error) errors.push(`${m.path}: ${m.error}`);
+            else state.sizes.set(m.path, m.size);
+          }
+        }
+        flush();
+      },
+    });
+  } catch (e) {
+    if (e.name !== "AbortError") toastError(e);
+  }
+  if (errors.length) toastError(new Error(errors.join("\n")));
+  if (sizingAbort === ctrl) sizingAbort = null;
+  state.sizing = null;
+  rebuildItems();
+}
+
 // ---------------------------------------------------------------- search mode
 
 let searchAbort = null;
