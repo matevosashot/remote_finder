@@ -4,9 +4,11 @@ import { duUrl } from "./api.js";
 import { showMenu } from "./menu.js";
 import { addBookmark, removeBookmark, setOption, sortBy } from "./settings.js";
 import { state } from "./state.js";
-import { K, canEdit, isArchive, isText, openTab } from "./util.js";
+import { K, canEdit, dirname, isArchive, isText, openTab } from "./util.js";
 
 // ---------------------------------------------------------------- menus
+
+const serveHere = (dir, file) => import("./fileservers.js").then((f) => f.startDialog(dir, file));
 
 export function itemMenu(e, entry) {
   const sel = A.selected();
@@ -53,6 +55,7 @@ export function itemMenu(e, entry) {
     single?.kind === "dir" ? { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(single.path), disabled: state.bookmarks.includes(single.path) } : null,
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(single?.kind === "dir" ? single.path : undefined) },
     single?.kind === "dir" ? { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(single.path) } : null,
+    single ? { icon: "server", label: "File Server Here…", run: () => (single.kind === "dir" ? serveHere(single.path) : serveHere(dirname(single.path), single.name)) } : null,
   ]);
 }
 
@@ -75,6 +78,7 @@ export function backgroundMenu(e) {
     { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(state.path)) },
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(state.path) },
     { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(state.path) },
+    { icon: "server", label: "File Server Here…", run: () => serveHere(state.path), disabled: !!state.search },
     { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(state.path), disabled: state.bookmarks.includes(state.path) },
     "-",
     { label: "View As", submenu: ["icons", "list", "columns", "gallery"].map((v, i) => ({
@@ -98,6 +102,7 @@ export function bookmarkMenu(e, path) {
     { icon: "chart", label: "Analyze Disk Usage…", run: () => openTab(duUrl(path)) },
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(path) },
     { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(path) },
+    { icon: "server", label: "File Server Here…", run: () => serveHere(path) },
     "-",
     { icon: "trash", label: "Remove from Sidebar", run: () => removeBookmark(path), disabled: !state.bookmarks.includes(path) },
   ]);
@@ -124,6 +129,7 @@ export function crumbMenu(e, path) {
     "-",
     { icon: "terminal", label: "Open Terminal Here", run: () => A.terminalHere(path) },
     { icon: "claude", label: "Launch Claude Here", run: () => A.launchClaude(path) },
+    { icon: "server", label: "File Server Here…", run: () => serveHere(path) },
     { icon: "fav", label: "Add to Sidebar", run: () => addBookmark(path), disabled: state.bookmarks.includes(path) },
   ]);
 }

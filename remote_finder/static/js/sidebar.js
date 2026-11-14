@@ -7,10 +7,12 @@ import { bindDropTarget, draggedPaths, isInternalDrag } from "./selection.js";
 import { addBookmark } from "./settings.js";
 import { on, state } from "./state.js";
 import { basename, fmtSize, h } from "./util.js";
+import { fmtLeft, idleLeft, serverWindow, stopServer } from "./fileservers.js";
 
 const BOOKMARK_DROP = "\0bookmark"; // drop target id for "add to Favorites"
 const DOWNLOAD_DROP = "\0download"; // the Download slot shown while items are dragged
 let root;
+let servers; // the Servers section: redrawn on its own as the list and the idle countdowns change
 
 export function initSidebar(el) {
   root = el;
@@ -18,6 +20,8 @@ export function initSidebar(el) {
   on("bookmarks", draw);
   on("path", markActive);
   on("disks", draw);
+  on("fileservers", drawServers);
+  setInterval(() => state.fileServers.length && drawServers(), 30_000);
   bindDropTarget(root, (dest, dt, copy) => {
     if (dest === BOOKMARK_DROP) {
       for (const p of draggedPaths(dt) || []) addBookmark(p);
@@ -63,8 +67,25 @@ function draw() {
     }));
   const download = h("div", { class: "sb-download", title: "Drop items here to download them" },
     h("span", { class: "sb-icon", html: ICONS.download }), h("span", { class: "sb-label" }, "Download"));
-  root.replaceChildren(favs, disks, download);
+  servers = h("div", { class: "sb-section sb-servers" });
+  root.replaceChildren(favs, disks, servers, download);
+  drawServers();
   markActive();
+}
+
+function drawServers() {
+  if (!servers) return;
+  servers.hidden = !state.fileServers.length;
+  servers.replaceChildren(h("div", { class: "sb-head" }, "File Servers"), ...state.fileServers.map((s) => {
+    const left = idleLeft(s);
+    const sub = [`${s.requests} req`, left != null ? `${fmtLeft(left)} left` : null].filter(Boolean).join(" · ");
+    return h("div", { class: "sb-server", title: `${s.root}\n${s.host}:${s.port} · click for URLs and the log`, onclick: () => serverWindow(s.id) },
+      h("span", { class: "sb-server-dot" }),
+      h("div", { class: "sb-server-text" },
+        h("div", { class: "sb-server-name" }, h("b", {}, `:${s.port}`), ` ${s.name}`),
+        h("div", { class: "sb-server-sub" }, sub)),
+      h("button", { class: "sb-server-x", title: "Stop this server", onclick: (e) => { e.stopPropagation(); stopServer(s.id); } }, "×"));
+  }));
 }
 
 function markActive() {

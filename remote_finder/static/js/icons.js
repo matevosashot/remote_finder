@@ -90,6 +90,7 @@ export const ICONS = {
   newfile: S(`<path d="M3.5 1.8h5.5l3.5 3.5v8a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1z"/><path d="M8 7.5v4.5M5.8 9.8h4.4"/>`),
   chart: S(`<path d="M7 2.2A6 6 0 1 0 13.8 9H7z"/><path d="M9.2 1.6A5.5 5.5 0 0 1 14.4 6.8H9.2z"/>`),
   fav: S(`<path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/>`),
+  server: S(`<rect x="2" y="2.5" width="12" height="4.5" rx="1"/><rect x="2" y="9" width="12" height="4.5" rx="1"/><path d="M4.6 4.75h.01M4.6 11.25h.01M8 4.75h3.5M8 11.25h3.5"/>`),
   claude: S(`<path d="M8 1.5v13M2.4 4.75l11.2 6.5M2.4 11.25l11.2-6.5"/>`),
   link: `<svg viewBox="0 0 16 16" class="badge-link"><rect width="16" height="16" rx="3" fill="#fff"/><path d="M5 11l6-6M6.5 5H11v4.5" fill="none" stroke="#222" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };

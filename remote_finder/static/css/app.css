@@ -110,6 +110,15 @@ button { font: inherit; color: inherit; }
 /* floats over the bottom of the sidebar mid-drag, so nothing the drag is aiming at moves */
 .sb-download { display: none; position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 2; align-items: center; gap: 7px; padding: 14px 10px; border: 2px dashed var(--accent); border-radius: 8px; color: var(--accent); font-weight: 600; background: var(--sidebar); box-shadow: var(--shadow); }
 .dragging-items .sb-download { display: flex; }
+.sb-server { display: flex; align-items: center; gap: 7px; padding: 4px 4px 4px 8px; border-radius: 6px; cursor: default; }
+.sb-server:hover { background: var(--hover); }
+.sb-server-dot { width: 8px; height: 8px; border-radius: 50%; background: #2fb344; flex: none; box-shadow: 0 0 0 3px color-mix(in srgb, #2fb344 22%, transparent); }
+.sb-server-text { flex: 1; min-width: 0; }
+.sb-server-name, .sb-server-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-server-sub { font-size: 11px; color: var(--muted); }
+.sb-server-x { border: 0; background: none; color: var(--muted); font-size: 15px; line-height: 1; padding: 2px 5px; border-radius: 4px; visibility: hidden; }
+.sb-server:hover .sb-server-x { visibility: visible; }
+.sb-server-x:hover { background: var(--border-soft); color: var(--text); }
 .sb-download.drop-hover { background: var(--drop); border-style: solid; }
 
 /* ---------------------------------------------------------------- list view */
@@ -303,6 +312,22 @@ body.resizing-y, body.resizing-y * { cursor: ns-resize !important; user-select: 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.18); display: flex; align-items: flex-start; justify-content: center; z-index: 900; padding-top: 12vh; }
 .dialog { background: var(--bg); border-radius: 12px; box-shadow: var(--shadow); padding: 18px 20px 14px; width: 440px; max-width: calc(100vw - 32px); max-height: 76vh; display: flex; flex-direction: column; }
 .dialog.wide { width: 620px; }
+.fs-form td { word-break: normal; }
+.fs-form .fs-port { width: 110px; }
+.fs-form .fs-idle { width: auto; }
+.fs-note { color: var(--muted); font-size: 12px; margin: 2px 0 4px; }
+.dialog.fs-window { width: 780px; }
+.fs-urls td code { font: 12px var(--mono); word-break: break-all; }
+.fs-urls td.fs-actions { white-space: nowrap; text-align: right; width: 1%; }
+.fs-status { margin: 8px 0 6px; color: var(--muted); font-size: 12px; }
+.fs-stopped { color: var(--danger); }
+.fs-log { font: 11.5px var(--mono); background: var(--code-bg); border: 1px solid var(--border-soft); border-radius: 6px; padding: 6px 8px; height: 240px; overflow: auto; }
+.fs-log-empty { color: var(--muted); }
+.fs-log-line { display: flex; gap: 10px; white-space: nowrap; }
+.fs-log-line .fs-t, .fs-log-line .fs-c { color: var(--muted); flex: none; }
+.fs-log-line .fs-l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fs-log-line .fs-s { flex: none; }
+.fs-log-line.bad .fs-s, .fs-log-line.bad .fs-l { color: var(--danger); }
 .dialog h3 { margin: 0 0 8px; font-size: 14px; word-break: break-word; }
 .dialog p { margin: 0 0 10px; }
 .dialog-detail ul { margin: 0 0 10px; padding-left: 20px; max-height: 180px; overflow: auto; color: var(--muted); }

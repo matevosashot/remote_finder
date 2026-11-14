@@ -27,6 +27,8 @@ export const state = {
   childCache: new Map(),  // list view: path -> entries for expanded folders
   clipboard: null,        // {op: 'copy'|'move', paths: []}
   sizes: new Map(),       // du results: path -> bytes
+  fileServers: [],        // running file servers (from the presence socket)
+  fileServersAt: 0,       // when that list arrived, to count idle time down locally
   sizing: null,           // folder sizes being calculated: path -> bytes so far (null when idle)
   disks: [],
   bookmarks: [],

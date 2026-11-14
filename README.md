@@ -26,6 +26,11 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
   default, or `.tar.xz` / `.tar.zst`, saved next to the files), Extract Here, Get Info, Calculate
   Size, Rename, Copy / Cut / Paste, Delete, Add to Sidebar, Open Terminal Here, Launch Claude Here.
   Right-clicking a folder in the path bar gives the folder actions too.
+- **File Server Here:** right-click a folder (or an HTML file) to serve it like `python -m http.server`:
+  pick the port (8000, or the next free one) and 0.0.0.0 or localhost. It stops after 10 min unused
+  (or 1 hour, or never) and when the Finder tab that started it closes. Running servers show in
+  the sidebar; click one for its URLs, the SSH tunnel command and a live request log. Unlike
+  http.server it handles Range requests, so videos seek, and can send CORS headers.
 - **Launch Claude Here:** opens a window named after the folder in the tmux session `claude`
   (created if missing) running `claude --remote-control`, and attaches the app's terminal to it.
 - **Open in a new tab:** syntax-highlighted code, a collapsible JSON tree, rendered Markdown,
@@ -214,6 +219,7 @@ remote_finder/          FastAPI backend
   terminal.py, jobs.py  pty terminal over WebSocket, background jobs with progress/cancel
   settings.py           bookmarks and view options
   claude_api.py         Launch Claude Here (tmux window running claude --remote-control)
+  fileserver.py         File Server Here: http.server threads with Range, logs, idle/tab-close stops
   update.py             daily update check against GitHub, one-click pip upgrade
   static/               index/viewer/tail/editor/du pages, ES modules in js/, CSS, vendored libs
 tests/                  pytest API tests and Playwright UI tests

@@ -273,6 +273,36 @@ def test_folder_sizes_from_the_size_header(app, fixture_dir):
     assert names.index("photos") < names.index("sub")  # largest first: images beat a 5-byte note
 
 
+def test_file_server_here(app, fixture_dir):
+    item(app, fixture_dir / "sub").click(button="right")
+    app.locator(".menu-item", has_text="File Server Here…").click()
+    expect(app.locator(".fs-port")).to_have_value("8000")
+    expect(app.locator("input[name=fs-host][value='0.0.0.0']")).to_be_checked()
+    expect(app.locator(".fs-note", has_text="Anyone who can reach")).to_be_visible()
+    port = _free_port()
+    app.locator(".fs-port").fill(str(port))
+    app.locator("input[name=fs-host][value='127.0.0.1']").check()
+    expect(app.locator(".fs-note", has_text="Anyone who can reach")).to_be_hidden()
+    app.locator(".dialog .btn.primary", has_text="Start").click()
+
+    window = app.locator(".fs-window")
+    expect(window.locator(".fs-urls")).to_contain_text(f"http://localhost:{port}/")
+    expect(window.locator(".fs-urls")).to_contain_text(f"ssh -N -L {port}:localhost:{port}")
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/deeper/deepnote.txt", timeout=5) as r:
+        assert r.read() == b"deep\n"
+    expect(window.locator(".fs-log")).to_contain_text("GET /deeper/deepnote.txt")
+    expect(window.locator(".fs-status")).to_contain_text("1 request ·")
+    window.locator(".btn", has_text="Close").click()
+
+    row = app.locator(".sb-server", has_text=f":{port}")
+    expect(row).to_contain_text("sub")
+    row.hover()
+    row.locator(".sb-server-x").click()
+    expect(row).to_have_count(0)
+    with pytest.raises(OSError):
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2)
+
+
 def test_file_operations(app, fixture_dir):
     # new folder + inline rename
     app.locator(".list-scroll").click(position={"x": 500, "y": 700})
