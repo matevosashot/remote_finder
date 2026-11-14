@@ -1,5 +1,5 @@
 // New-tab viewer: code, JSON, Markdown, CSV, notebooks, images (with folder stepping), media, PDF.
-import { editorUrl, fetchText, folderUrl, get, rawUrl, tailUrl, viewerUrl } from "./api.js";
+import { editorUrl, fetchText, folderUrl, get, rawUrl, renderUrl, tailUrl, viewerUrl } from "./api.js";
 import { toastError } from "./dialogs.js";
 import { showPath } from "./pathbar.js";
 import { $, basename, canEdit, category, clickLink, dirname, extOf, fmtDate, fmtSize, h, isText, join, kindLabel, openTab, store } from "./util.js";
@@ -63,7 +63,7 @@ async function load() {
   if (cat === "audio") return body.replaceChildren(h("div", { class: "page-msg" }, h("audio", { src: rawUrl(path), controls: true })));
   if (cat === "pdf") return body.replaceChildren(h("iframe", { class: "full-frame", src: rawUrl(path), title: st.name }));
   if (ext === "html" || ext === "htm") return showToggle(st, [["source", "Source"], ["render", "Render (sandboxed)"]], "source", (m, box) => {
-    const page = rawUrl(path, { render: 1 });
+    const page = renderUrl(path);
     actions(st, m === "render" ? [h("button", { class: "btn small", title: "The page's own tab, still sandboxed", onclick: () => openTab(page) }, "Open Rendered in New Tab")] : []);
     return m === "render" ? box.append(h("iframe", { class: "full-frame", sandbox: RENDER_SANDBOX, src: page })) : showText(st, box);
   });

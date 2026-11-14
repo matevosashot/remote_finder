@@ -605,6 +605,18 @@ def test_viewer_html_render_is_sandboxed(ctx, server, fixture_dir):
     expect(page.locator("button", has_text="Open Rendered in New Tab")).to_have_count(0)
 
 
+def test_rendered_page_loads_files_next_to_it(ctx, server, tmp_path):
+    from PIL import Image
+    (tmp_path / "my site" / "media").mkdir(parents=True)
+    Image.new("RGB", (32, 16), (0, 160, 0)).save(tmp_path / "my site" / "media" / "pic #1.png")
+    (tmp_path / "my site" / "index.html").write_text("<img id=pic src='media/pic%20%231.png'>")
+    page = ctx.new_page()
+    page.goto(f"{server}/viewer.html?path={quote(str(tmp_path / 'my site' / 'index.html'))}")
+    page.locator(".seg-btn", has_text="Render").click()
+    frame = page.frame_locator("iframe.full-frame")
+    expect(frame.locator("#pic")).to_have_js_property("naturalWidth", 32)
+
+
 def test_viewer_big_file_loads_in_chunks(ctx, server, fixture_dir):
     page = ctx.new_page()
     page.goto(f"{server}/viewer.html?path={quote(str(fixture_dir / 'big.log'))}")

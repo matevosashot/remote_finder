@@ -48,6 +48,8 @@ def test_active_content_sandboxed(client, tmp_path):
     assert r.headers["x-content-type-options"] == "nosniff"
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.html"), "render": 1})
     assert r.headers["content-type"].startswith("text/html") and r.headers["content-security-policy"] == "sandbox " + RENDER_SANDBOX
+    r = client.get("/api/render" + str(tmp_path / "x.html"))  # by path, for relative links
+    assert r.headers["content-type"].startswith("text/html") and r.headers["content-security-policy"] == "sandbox " + RENDER_SANDBOX
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.svg")})
     assert r.headers["content-type"].startswith("text/plain")
     r = client.get("/api/raw", params={"path": str(tmp_path / "x.pdf")})

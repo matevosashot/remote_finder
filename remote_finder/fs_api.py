@@ -92,6 +92,13 @@ def raw(path: str = Query(...), download: bool = False, render: bool = False):
                         content_disposition_type="attachment" if download else "inline")
 
 
+@router.get("/render/{path:path}")
+def render(path: str):
+    """A file for a rendered page, addressed by path so the page's relative links (media/x.mp4) resolve
+    to its neighbours. HTML runs sandboxed exactly as with /raw?render=1."""
+    return raw("/" + path, render=True)
+
+
 @router.get("/download")
 def download(paths: list[str] = Query(...)):
     """Stream one or more files/folders as a zip (nothing written on the server)."""

@@ -79,6 +79,8 @@ export async function streamNdjson(path, params, { signal, onBatch, body }) {
 }
 
 export const rawUrl = (path, extra = {}) => `/api/raw?${qs({ path, ...extra })}`;
+/** A rendered (sandboxed) HTML page by path, so its relative links reach the files next to it. */
+export const renderUrl = (path) => `/api/render${path.split("/").map(encodeURIComponent).join("/")}`;
 export const thumbUrl = (path, size, mtime) => `/api/thumb?${qs({ path, size, v: Math.floor(mtime || 0) })}`;
 /** Query string for page URLs, leaving "/" readable so the address bar shows the path. */
 export const pageQuery = (params) => qs(params).replace(/%2F/gi, "/");
