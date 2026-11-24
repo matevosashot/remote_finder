@@ -14,8 +14,11 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 
 - **Finder views:** Icons (with a size slider and image thumbnails), List (sortable, resizable
   columns: drag a header edge, double-click it to fit; folders expand inline and stay expanded across reloads; Expand/Collapse All on the background
-  menu), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay fast because every
-  view is virtualized.
+  menu), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay fast: a big
+  folder opens with its first page (twice what fits on screen), sorted and filtered on the server,
+  with **Show More** / **Show All** under it. Sorted by name only that page is stat'ed, so even slow
+  network storage opens at once; other sorts show their best page so far while every file is read.
+  Every view is virtualized.
 - **Folder sizes in list view:** the button in the Size column header calculates every listed
   folder's size, several at once; when sorted by size, rows re-sort as each folder finishes.
 - **Selection like Finder:** click, Ctrl/⌘-click, Shift-click ranges, rubber band in icon and list
@@ -212,6 +215,7 @@ remote_finder/          FastAPI backend
   config.py             app name, config/cache dirs, CSRF header name
   fsutil.py, models.py  shared filesystem helpers and request bodies
   fs_api.py             read-only: list, stat, raw, zip download, disks, folder sizes
+  listing.py            big folders a page at a time: server-side sort/filter, streamed
   ops_api.py            mkdir, rename, delete, copy/move, upload, save
   archive_api.py        compress, extract, list archive contents
   text_api.py           head/tail/line/byte/grep on files of any size, WebSocket follow

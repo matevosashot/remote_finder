@@ -25,6 +25,7 @@ const sizeOf = (e) => (e.kind === "dir" ? (state.sizes.get(e.path) ?? -1) : e.si
 const kindKey = (e) => (e.kind === "dir" ? " folder" : e.name.split(".").pop());
 
 const visible = (e) => state.showHidden || !e.hidden;
+const orderKey = () => `${state.sort.key}:${state.sort.dir}:${state.foldersFirst}`;
 
 /** Rebuild state.items from the listing (+ expanded children, filter, search results). */
 export function rebuildItems() {
@@ -34,10 +35,13 @@ export function rebuildItems() {
   } else if (state.listing) {
     const flat = [];
     const q = state.filter.toLowerCase();
+    // a big listing the server sorted the way the view wants needs no sort here (100k names take seconds);
+    // folder sizes the client calculated can reorder a size sort, so that one is always redone
+    const presorted = state.listing.entries.length > 2000 && state.listing.order === orderKey() && state.sort.key !== "size";
     const add = (entries, dir, depth) => {
       let list = decorate(entries, dir, depth).filter(visible);
       if (q && depth === 0) list = list.filter((e) => e.name.toLowerCase().includes(q));
-      list.sort(compare);
+      if (!(presorted && depth === 0)) list.sort(compare);
       for (const e of list) {
         flat.push(e);
         if (e.kind === "dir" && state.view === "list" && state.expanded.has(e.path)) {
@@ -59,22 +63,114 @@ export function rebuildItems() {
 
 let loadToken = 0;
 let loading = null; // folder of the latest navigate() still in flight
+let listCtl = null; // the folder listing request in flight (a page, more rows, a refresh)
+
+/** Abort the listing request in flight and get a signal for the next one. */
+function newListing() {
+  listCtl?.abort();
+  listCtl = new AbortController();
+  return listCtl.signal;
+}
+
+const aborted = (e) => e?.name === "AbortError";
+
+let rebuildTimer = null;
+function rebuildSoon() {
+  rebuildTimer ??= setTimeout(() => { rebuildTimer = null; rebuildItems(); }, 120);
+}
+
+/** How many rows to ask for at a time: twice what fits on screen, at least 100. */
+export function pageSize() {
+  const host = document.querySelector(".view-host");
+  const w = host?.clientWidth || 1000, ht = host?.clientHeight || 800;
+  let fits = 50;
+  if (state.view === "list" || state.view === "columns") fits = Math.ceil(ht / 22);
+  else if (state.view === "icons") fits = Math.max(1, Math.floor(w / (state.iconSize + 48))) * Math.ceil(ht / (state.iconSize + 56));
+  return Math.max(100, 2 * fits);
+}
+
+/**
+ * Stream rows of a folder, sorted (and filtered) on the server like the view. A big folder comes a page at
+ * a time: `limit` rows from `offset`; `include` names rows to send even if they fall outside the page.
+ * With `into`, rows are appended to that listing. onData(listing) runs as rows arrive.
+ */
+function streamListing(path, { offset = 0, limit = null, include = [], q = state.filter, reuse = false, into = null, signal }, onData) {
+  let l = into;
+  const done = streamNdjson("/api/list/stream", {
+    path, sort: state.sort.key === "where" ? "name" : state.sort.key, dir: state.sort.dir, folders_first: state.foldersFirst,
+    hidden: state.showHidden, q: q || null, offset: offset || null, limit, include, reuse: reuse ? 1 : null,
+  }, { signal, onBatch: (msgs) => {
+    for (const m of msgs) {
+      if (m.head && into) l.total = m.head.total;
+      else if (m.head) {
+        l = { ...m.head, entries: [], loading: true, since: performance.now(), complete: false, next: offset, read: 0, extras: new Set(),
+          order: orderKey(), hidden: state.showHidden, q: (q || "").toLowerCase() };
+      } else if (m.provisional && !into) {
+        Object.assign(l, { entries: m.provisional, provisional: true });
+      } else if (m.entries) {
+        if (l.provisional) Object.assign(l, { entries: [], provisional: false });
+        l.read = 0;
+        l.next += m.entries.length;
+        for (const e of m.entries) if (!l.extras.has(e.name)) l.entries.push(e);
+      } else if (m.extra) {
+        // rows asked for by name that sort outside the page: put them where they belong among the loaded ones
+        for (const e of m.extra) {
+          l.extras.add(e.name);
+          let lo = 0, hi = l.entries.length;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (compare(l.entries[mid], e) <= 0) lo = mid + 1; else hi = mid; }
+          l.entries.splice(lo, 0, e);
+        }
+      } else if (m.progress) l.read = m.progress;
+      else if (m.done) Object.assign(l, { next: m.next, complete: m.complete });
+    }
+    if (l) onData?.(l);
+  } }).finally(() => {
+    if (!l) return;
+    l.loading = false;
+    if (l.provisional) l.next = l.entries.length;  // stopped mid-read: the best page so far stays
+    l.complete = l.next >= l.total;
+  });
+  return done.then(() => l);
+}
+
+/** Names of `paths` that sit directly in `dir`, for streamListing's include. */
+const namesIn = (dir, paths) => paths.filter((p) => dirname(p) === dir).map((p) => p.slice(dir === "/" ? 1 : dir.length + 1));
 
 /** Go to a folder. opts: {push=true, select: path|[paths], fromPop} */
 export async function navigate(path, opts = {}) {
   const token = ++loadToken;
   loading = path;
+  cancelRefetch();
+  const signal = newListing();
+  const dir = path.replace(/(.)\/+$/, "$1");
+  let select = opts.select ? [].concat(opts.select) : [];
+  // Going up: select the folder we came from (Finder behaviour)
+  const cameFrom = childToward(dir, state.path);
+  if (!select.length && cameFrom) select = [cameFrom];
+  // switch as soon as the first rows (or the head of a slow sort) arrive; the rest fills in after
+  let shown = false, first;
+  const arrived = new Promise((resolve) => (first = resolve));
+  const done = streamListing(path, { limit: pageSize(), include: namesIn(dir, select), q: "", signal }, (l) => {
+    // switch once there is something to show: rows, an empty folder, or a slow sort's progress
+    if (!shown) { if (l.entries.length || l.read || l.next >= l.total) first(l); }
+    else if (token === loadToken) rebuildSoon();
+  });
   let listing;
   try {
-    listing = await get("/api/list", { path });
+    listing = await Promise.race([arrived, done]);
   } catch (e) {
-    if (token === loadToken) { loading = null; toastError(e); }
-    if (opts.fromPop) return;
+    if (token === loadToken && !aborted(e)) { loading = null; toastError(e); }
+    if (opts.fromPop || aborted(e)) return;
     throw e;
   }
   if (token !== loadToken) return;
+  shown = true;
+  done.then(() => token === loadToken && rebuildItems(), (e) => {
+    if (token !== loadToken) return;
+    if (!aborted(e)) toastError(e);
+    rebuildItems();  // stopped or failed: keep what arrived
+  });
   loading = null;
-  const prev = state.path;
   exitSearch(false);
   state.path = listing.path;
   state.listing = listing;
@@ -83,10 +179,6 @@ export async function navigate(path, opts = {}) {
   state.childCache.clear();
   const reopen = savedExpanded(listing.path);
   for (const p of reopen) state.expanded.add(p);
-  let select = opts.select ? [].concat(opts.select) : [];
-  // Going up: select the folder we came from (Finder behaviour)
-  const cameFrom = childToward(listing.path, prev);
-  if (!select.length && cameFrom) select = [cameFrom];
   state.selection = new Set(select);
   state.anchor = state.focus = select[0] || null;
 
@@ -103,6 +195,71 @@ export async function navigate(path, opts = {}) {
   emit("selection");
   if (state.focus) emit("reveal", state.focus);
   if (reopen.length) loadChildren(reopen, token);
+}
+
+/** "Show More" / "Show All": the next page of a big folder, or all the rest, appended as it streams. */
+export async function loadMore(all = false) {
+  const l = state.listing;
+  if (!l || l.complete || l.loading || state.search) return;
+  cancelRefetch();
+  const token = loadToken;
+  Object.assign(l, { loading: true, since: performance.now() });
+  rebuildItems();
+  try {
+    await streamListing(state.path, { offset: l.next, limit: all ? null : pageSize(), q: l.q, reuse: true, into: l,
+      signal: newListing() }, () => rebuildSoon());
+  } catch (e) {
+    if (!aborted(e)) toastError(e);
+  }
+  if (token === loadToken) rebuildItems();
+}
+
+/** Stop a "Show All" that is still streaming; what arrived stays. */
+export function stopLoading() {
+  const l = state.listing;
+  if (l?.loading || l?.pending) listCtl?.abort();
+}
+
+/** The loaded listing holds everything the view shows: complete, with hidden files if they are shown,
+ * and not narrowed by an older, different filter. */
+function covers(l) {
+  return l.complete && (l.hidden || !state.showHidden) && state.filter.toLowerCase().includes(l.q);
+}
+
+let refetchTimer = null;
+const cancelRefetch = () => { clearTimeout(refetchTimer); refetchTimer = null; };
+function refetchSoon() {
+  cancelRefetch();
+  refetchTimer = setTimeout(refetch, 200);  // typing in the filter asks once
+}
+
+/** The top of the folder again for the current sort/filter; the old rows stay until new ones arrive. */
+async function refetch() {
+  refetchTimer = null;
+  if (state.search || !state.listing) return;
+  const token = loadToken, old = state.listing;
+  try {
+    const l = await streamListing(state.path, { limit: pageSize(), reuse: true, signal: newListing() }, (l) => {
+      if (token !== loadToken) return;
+      if (l.entries.length) state.listing = l;
+      else old.pending = l;  // the bar shows its progress meanwhile
+      rebuildSoon();
+    });
+    if (token === loadToken) state.listing = l;
+  } catch (e) {
+    if (!aborted(e)) toastError(e);
+  }
+  delete old.pending;
+  if (token === loadToken) { rebuildItems(); emit("selection"); }
+}
+
+/** After the sort, hidden files or the filter changed: re-sort the loaded rows now, and if the folder
+ * isn't all here (or is big and the sort changed), fetch the new top of it. */
+export function syncListing(sortChanged = false) {
+  const l = state.listing;
+  if (!l || state.search) return;
+  if (covers(l) && !(sortChanged && l.total > pageSize())) return;
+  refetchSoon();
 }
 
 /** Up one level from where we are going, so a quick double Mod+Up climbs two levels. */
@@ -130,8 +287,14 @@ window.addEventListener("popstate", (e) => {
 export async function refresh({ select } = {}) {
   if (state.search) return;
   const token = loadToken;
+  const old = state.listing;
+  const keep = select ? [].concat(select) : [];
   try {
-    const listing = await get("/api/list", { path: state.path });
+    // as many rows as are loaded now (all of them if all are), plus anything to select
+    const listing = await streamListing(state.path, {
+      limit: old && !old.complete ? Math.max(old.next, pageSize()) : null,
+      include: namesIn(state.path, keep), q: old?.q ?? state.filter, signal: newListing(),
+    });
     if (token !== loadToken) return;
     state.listing = listing;
     for (const p of state.expanded) {
@@ -143,8 +306,8 @@ export async function refresh({ select } = {}) {
     return;
   }
   if (select) {
-    state.selection = new Set([].concat(select));
-    state.anchor = state.focus = [].concat(select)[0];
+    state.selection = new Set(keep);
+    state.anchor = state.focus = keep[0];
   }
   rebuildItems();
   emit("selection");

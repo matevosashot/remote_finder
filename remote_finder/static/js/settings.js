@@ -1,6 +1,6 @@
 // View preferences and bookmarks, persisted on the server (debounced; flushed when the tab closes).
 import { get, put } from "./api.js";
-import { rebuildItems } from "./nav.js";
+import { rebuildItems, syncListing } from "./nav.js";
 import { emit, state } from "./state.js";
 import { debounce } from "./util.js";
 
@@ -32,6 +32,7 @@ export function setOption(key, value) {
   state[key] = value;
   saveSettings();
   if (AFFECTS_ITEMS.includes(key)) rebuildItems();
+  if (key === "sort" || key === "foldersFirst" || key === "showHidden") syncListing(key !== "showHidden");
   emit("options", key);
 }
 

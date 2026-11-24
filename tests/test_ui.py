@@ -208,6 +208,42 @@ def test_quicklook_plays_audio(app, server, tmp_path):
     assert app.evaluate("() => [...document.querySelectorAll('audio')].every(a => a.paused)")
 
 
+def test_big_folder_a_page_at_a_time(app, server, tmp_path):
+    for i in range(300):
+        (tmp_path / f"n{i:03d}.txt").write_text("x" * i)
+    app.goto(f"{server}/#{tmp_path}")
+    bar = app.locator(".more-bar")
+    expect(bar).to_contain_text("of 300")
+    shown = int(re.search(r"Showing (\d+)", bar.inner_text())[1])
+    assert 100 <= shown < 300
+    expect(app.locator(".statusbar")).to_contain_text(f"{shown} of 300 items")
+    assert app.locator(f'[data-path="{tmp_path / "n299.txt"}"]').count() == 0
+    bar.locator("button", has_text="More").click()
+    expect(bar).to_contain_text(f"Showing {min(300, 2 * shown)} of 300")
+    bar.locator("button", has_text="Show All").click()
+    expect(bar).to_be_hidden()
+    expect(app.locator(".statusbar")).to_contain_text("300 items")
+    # a new sort shows the top of the folder again, sorted on the server
+    app.locator(".list-header .col-size").click()
+    expect(bar).to_contain_text(f"Showing {shown} of 300")
+    names = app.evaluate("() => [...document.querySelectorAll('.list-scroll .row .name')].slice(0, 2).map(e => e.textContent)")
+    assert names == ["n299.txt", "n298.txt"]  # biggest first
+    # the filter asks the server too, so it finds rows that weren't loaded
+    app.locator("input.search").fill("n29")
+    expect(app.locator(".statusbar")).to_contain_text("10 items matching")
+    expect(bar).to_be_hidden()
+    app.locator("input.search").fill("")
+    expect(bar).to_contain_text("of 300")
+    app.locator(".list-header .col-name").click()
+
+
+def test_server_sort_follows_the_browser_collator(app):
+    from test_listing import COLLATOR_ORDER
+    js = app.evaluate("n => n.slice().sort(new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'}).compare)",
+                      list(reversed(COLLATOR_ORDER)))
+    assert js == COLLATOR_ORDER
+
+
 def test_go_to_path_takes_folders_and_files(app, ctx, fixture_dir):
     def go(path):
         app.keyboard.press("Control+Shift+g")

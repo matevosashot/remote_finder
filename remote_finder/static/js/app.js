@@ -4,7 +4,7 @@ import { get } from "./api.js";
 import { backgroundMenu, crumbMenu, itemMenu } from "./contextmenu.js";
 import { ICONS } from "./icons.js";
 import { goToPath, initKeyboard } from "./keyboard.js";
-import { exitSearch, goBack, goForward, navigate, pathFromHash, rebuildItems, startSearch } from "./nav.js";
+import { exitSearch, goBack, goForward, loadMore, navigate, pageSize, pathFromHash, rebuildItems, startSearch, stopLoading, syncListing } from "./nav.js";
 import { renderPreview } from "./preview.js";
 import { bindDropTarget, bindItems } from "./selection.js";
 import { loadSettings, setOption } from "./settings.js";
@@ -51,7 +51,8 @@ function buildShell() {
   el.sidebar = h("aside", { class: "sidebar" });
   el.viewHost = h("div", { class: "view-host" });
   el.pane = h("aside", { class: "preview-pane", hidden: true });
-  el.content = h("div", { class: "content" }, el.viewHost, el.pane);
+  el.more = h("div", { class: "more-bar", hidden: true });
+  el.content = h("div", { class: "content" }, h("div", { class: "view-col" }, el.viewHost, el.more), el.pane);
   el.workspace = h("div", { class: "workspace dock-bottom" }, el.content);
   el.statusL = h("span", {});
   el.statusR = h("span", {});
@@ -115,7 +116,9 @@ function updateStatus() {
     left = `${state.search.results.length.toLocaleString()} result(s) for “${state.search.q}” in ${state.search.root}` +
       (state.search.running ? ` — searching… (${state.search.scanned.toLocaleString()} scanned)` : "");
   } else {
-    left = `${n.toLocaleString()} item${n === 1 ? "" : "s"}${state.filter ? ` matching “${state.filter}”` : ""}`;
+    const l = state.listing;
+    const of = l && !l.complete ? ` of ${l.total.toLocaleString()}` : "";
+    left = `${n.toLocaleString()}${of} item${n === 1 && !of ? "" : "s"}${state.filter ? ` matching “${state.filter}”` : ""}`;
     if (state.listing && !state.listing.writable) left += " · read-only";
   }
   if (s) {
@@ -125,6 +128,27 @@ function updateStatus() {
   el.statusL.textContent = left;
   const disk = state.disks.filter((d) => isInside(state.path, d.mount)).sort((a, b) => b.mount.length - a.mount.length)[0];
   el.statusR.textContent = disk ? `${fmtSize(disk.free)} available on ${disk.mount}` : "";
+}
+
+/** Under a big folder shown a page at a time: how much is shown, Show More, Show All (and Stop). */
+let moreTimer = null;
+function updateMore() {
+  const l = state.listing;
+  const p = l?.pending || l;  // a new sort being fetched while the old rows show
+  clearTimeout(moreTimer);
+  // most loads finish in a blink: leave the bar alone unless one takes a while
+  if (p?.loading && performance.now() - p.since < 400) { moreTimer = setTimeout(updateMore, 420); return; }
+  const show = l && !state.search && (p.loading || !l.complete);
+  el.more.hidden = !show;
+  if (!show) return;
+  const n = (x) => x.toLocaleString();
+  const text = !p.loading ? `Showing ${n(l.next)} of ${n(l.total)}${l.provisional ? `, the best of the first ${n(l.read)} read` : ""}`
+    : p.read ? `Reading ${n(Math.min(p.read, p.total))} of ${n(p.total)} to sort them…`
+      : `Loading ${n(p.next)} of ${n(p.total)}…`;
+  el.more.replaceChildren(h("span", { class: "more-text" }, text), ...(p.loading
+    ? [h("button", { class: "btn small", onclick: stopLoading }, "Stop")]
+    : [h("button", { class: "btn small", onclick: () => loadMore(false) }, `Show ${n(Math.min(pageSize(), l.total - l.next))} More`),
+      h("button", { class: "btn small", onclick: () => loadMore(true) }, `Show All ${n(l.total)}`)]));
 }
 
 // ---------------------------------------------------------------- wiring
@@ -154,6 +178,7 @@ function wire() {
     if (state.search) return;
     state.filter = el.search.value;
     rebuildItems();
+    syncListing();
   });
   el.search.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && el.search.value.trim()) startSearch(el.search.value.trim());
@@ -162,6 +187,7 @@ function wire() {
       state.filter = "";
       exitSearch();
       rebuildItems();
+      syncListing();
       el.viewHost.querySelector(".view-bg")?.focus();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -170,7 +196,7 @@ function wire() {
     }
   });
 
-  on("items", () => { view?.render(); updateStatus(); });
+  on("items", () => { view?.render(); updateStatus(); updateMore(); });
   on("selection", () => { view?.updateSelection(); updatePane(); updateStatus(); });
   on("reveal", (p) => view?.reveal(p));
   on("clipboard", () => view?.updateSelection());
