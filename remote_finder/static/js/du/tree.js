@@ -2,6 +2,7 @@
 import { collator, fmtSize, h } from "../util.js";
 import { iconFor } from "../icons.js";
 import { VirtualList } from "../virtual.js";
+import { ColumnWidths } from "../colresize.js";
 import { labelOf, sizeOf } from "./charts.js";
 
 const ROW = 24;
@@ -21,7 +22,9 @@ export function relTime(sec) {
 
 const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 const items = (d) => (d.kind === "dir" ? d.files + d.dirs : d.kind === "file" ? null : d.count);
-const isExtra = (d) => d.kind === "rest" || d.kind === "others";
+const isExtra = (d) => d.kind === "rest" || d.kind === "others" || d.kind === "loading";
+/** What `expanded` holds for a row: its path, or for a folder's "smaller files" row, "rest:" + the folder. */
+export const keyOf = (d) => d.path ?? (d.kind === "rest" ? `rest:${d.dir}` : null);
 
 /**
  * Callbacks get the row's data object: onSelect(d, event), onOpen(d), onToggle(d),
@@ -35,6 +38,7 @@ export class TreeList {
     this.header = h("div", { class: "list-header" });
     this.scroller = h("div", { class: "list-scroll view-bg" });
     host.append(this.header, this.scroller);
+    this.widths = new ColumnWidths(host, "columns.du", { minFlex: 150 });
     this.vl = new VirtualList(this.scroller, { rowHeight: ROW, count: 0, renderRow: (i) => this.row(i) });
     this.scroller.addEventListener("mouseleave", () => this.cb.onHover(null));
     this.renderHeader();
@@ -49,6 +53,7 @@ export class TreeList {
         if (this.last) this.render(...this.last);
       },
     }, label, this.sort.key === key ? h("span", { class: "sort-arrow" }, this.sort.dir > 0 ? "▲" : "▼") : null)));
+    this.widths.decorate(this.header, COLS.map(([key]) => key));
   }
 
   sorted(children, metric) {
@@ -66,7 +71,7 @@ export class TreeList {
     this.rows = [];
     const walk = (d, level, parent) => {
       this.rows.push({ d, level, parent });
-      if (d.children && (level === 0 || opts.expanded.has(d.path))) {
+      if (d.children && (level === 0 || opts.expanded.has(keyOf(d)))) {
         for (const c of this.sorted(d.children, opts.metric)) walk(c, level + 1, d);
       }
     };
@@ -98,7 +103,7 @@ export class TreeList {
     const { metric, expanded, selected, colors } = this.opts;
     const size = sizeOf(d, metric);
     const share = parent ? size / Math.max(1, sizeOf(parent, metric)) : 1;
-    const open = level === 0 || expanded.has(d.path);
+    const open = level === 0 || expanded.has(keyOf(d));
     const badges = [];
     if (d.state === "mount") badges.push(h("span", { class: "du-badge" }, "other filesystem"),
       h("span", { class: "du-badge action", title: "Count this mount point too", onclick: (e) => { e.stopPropagation(); this.cb.onInclude(d); } }, "Scan"));
@@ -118,10 +123,10 @@ export class TreeList {
       h("span", { class: "name", title: d.path || "" }, labelOf(d)),
       badges),
     h("div", { class: "col col-size" },
-      h("div", { class: "du-bar", title: `${(share * 100).toFixed(1)}% of ${parent ? parent.name : "total"}` },
+      d.kind === "loading" ? null : h("div", { class: "du-bar", title: `${(share * 100).toFixed(1)}% of ${parent ? parent.name : "total"}` },
         h("div", { style: { width: `${Math.min(100, share * 100)}%`, background: (level && colors.get(d.path)) || "var(--muted)" } })),
       d.kind === "dir" && !d.complete && d.state !== "mount" && d.state !== "skipped" ? h("span", { class: "du-spin", title: "Still counting" }) : null,
-      d.state === "mount" || d.state === "skipped" ? "--" : fmtSize(size)),
+      d.state === "mount" || d.state === "skipped" ? "--" : d.kind === "loading" ? "" : fmtSize(size)),
     h("div", { class: "col col-items" }, items(d) == null ? "" : plural(items(d), d.kind === "rest" ? "file" : "item")),
     h("div", { class: "col col-mtime" }, relTime(d.mtime)));
     el.addEventListener("mousedown", (e) => {

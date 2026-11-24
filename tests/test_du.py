@@ -121,6 +121,31 @@ def test_depth_big_files_and_buckets(client, tmp_path):
     assert merged[-1]["kind"] == "others" and merged[-1]["count"] >= 1
 
 
+def test_smaller_files_listed_on_demand(client, disk_tree):
+    sid = start(client, disk_tree)["id"]
+    wait_done(client, sid)
+    small = str(disk_tree / "small")
+    rest = [c for c in snap(client, sid, path=small, depth=1, min=0)["tree"]["children"] if c["kind"] == "rest"][0]
+    assert rest["kind"] == "rest" and rest["dir"] == small and rest["expandable"] and rest["count"] == 30
+    files = client.get(f"/api/du/scans/{sid}/small", params={"path": small, "metric": "apparent"}).json()["children"]
+    assert [f["name"] for f in files[:2]] == ["f29.txt", "f28.txt"] and len(files) == 30
+    assert sum(f["apparent"] for f in files) == rest["apparent"]
+    capped = client.get(f"/api/du/scans/{sid}/small", params={"path": small, "limit": 10}).json()["children"]
+    assert len(capped) == 11 and capped[-1]["kind"] == "others" and capped[-1]["count"] == 20
+    # big files kept by name and hardlinks counted elsewhere are not repeated
+    deep = client.get(f"/api/du/scans/{sid}/small", params={"path": str(disk_tree / "big" / "deep")}).json()["children"]
+    assert deep == []
+    # archiving one takes it out of the bucket, the folder and the listing
+    before = snap(client, sid, depth=0)["tree"]["apparent"]
+    f29 = files[0]
+    client.post("/api/du/archive", json={"add": [{**f29, "kind": "file"}]}, headers=HDR)
+    rest2 = [c for c in snap(client, sid, path=small, depth=1, min=0)["tree"]["children"] if c["kind"] == "rest"][0]
+    assert rest2["count"] == 29 and rest2["apparent"] == rest["apparent"] - f29["apparent"]
+    assert snap(client, sid, depth=0)["tree"]["apparent"] == before - f29["apparent"]
+    assert len(client.get(f"/api/du/scans/{sid}/small", params={"path": small}).json()["children"]) == 29
+    assert client.get(f"/api/du/scans/{sid}/small", params={"path": str(disk_tree / "nope")}).status_code == 404
+
+
 def test_snapshots_while_scanning(client, disk_tree, inline, monkeypatch):
     real = du_api.list_dirs
 

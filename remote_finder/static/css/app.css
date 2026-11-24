@@ -123,7 +123,9 @@ button { font: inherit; color: inherit; }
 
 /* ---------------------------------------------------------------- list view */
 .list-header { display: flex; border-bottom: 1px solid var(--border-soft); background: var(--bg); font-size: 12px; color: var(--muted); user-select: none; flex: none; }
-.list-header .col { padding: 5px 8px; border-right: 1px solid var(--border-soft); cursor: default; white-space: nowrap; overflow: hidden; }
+.list-header .col { position: relative; padding: 5px 8px; border-right: 1px solid var(--border-soft); cursor: default; white-space: nowrap; overflow: hidden; }
+.col-grip { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+.col-grip:hover { background: var(--border-soft); }
 .list-header .col:hover { background: var(--hover); }
 .list-header .col.sorted { color: var(--text); font-weight: 600; }
 .sort-arrow { font-size: 8px; margin-left: 5px; vertical-align: 1px; }
@@ -134,16 +136,16 @@ button { font: inherit; color: inherit; }
 .row.odd { background: var(--bg-alt); }
 .row .col { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .col-name { flex: 1 1 320px; min-width: 160px; display: flex; align-items: center; gap: 5px; }
-.col-mtime { flex: 0 0 190px; }
-.col-size { flex: 0 0 90px; text-align: right; }
+.col-mtime { flex: 0 0 var(--col-mtime, 190px); }
+.col-size { flex: 0 0 var(--col-size, 90px); text-align: right; }
 .list-header .col-size { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .sizes-btn { display: inline-flex; padding: 1px; margin-right: auto; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
 .sizes-btn:hover { background: var(--border-soft); color: var(--text); }
 .sizes-btn svg { width: 13px; height: 13px; }
 .sizes-btn.busy { color: var(--accent); animation: spin 1.2s linear infinite; }
 .row .sizing { color: var(--muted); }
-.col-kind { flex: 0 0 140px; }
-.col-where { flex: 0 1 280px; color: var(--muted); direction: rtl; text-align: left; }
+.col-kind { flex: 0 0 var(--col-kind, 140px); }
+.col-where { flex: 0 1 var(--col-where, 280px); color: var(--muted); direction: rtl; text-align: left; }
 .row .col-mtime, .row .col-size, .row .col-kind { color: var(--muted); }
 .row .item-icon { width: 16px; height: 16px; flex: none; }
 .row .name { overflow: hidden; text-overflow: ellipsis; }

@@ -273,6 +273,38 @@ def test_folder_sizes_from_the_size_header(app, fixture_dir):
     assert names.index("photos") < names.index("sub")  # largest first: images beat a 5-byte note
 
 
+def drag_by(page, handle, dx):
+    box = handle.bounding_box()
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + dx / 2, y)
+    page.mouse.move(x + dx, y)
+    page.mouse.up()
+
+
+def col_width(loc):
+    return loc.bounding_box()["width"]
+
+
+def test_resize_list_columns(app, fixture_dir):
+    header = app.locator(".list-header")
+    kind, size = header.locator(".col-kind"), header.locator(".col-size")
+    w = col_width(kind)
+    sort = app.evaluate("() => document.querySelector('.list-header .sorted')?.className")
+    drag_by(app, size.locator(".col-grip"), -60)  # the edge left of Kind: Kind grows, the edge follows
+    assert abs(col_width(kind) - (w + 60)) <= 2
+    assert app.evaluate("() => document.querySelector('.list-header .sorted')?.className") == sort  # no sort
+    row_kind = item(app, fixture_dir / "hello.py").locator(".col-kind")
+    assert abs(col_width(row_kind) - col_width(kind)) <= 1
+    app.reload()
+    expect(item(app, fixture_dir / "hello.py")).to_be_visible()
+    assert abs(col_width(header.locator(".col-kind")) - (w + 60)) <= 2  # remembered
+    header.locator(".col-size .col-grip").dblclick()  # fit Kind to its content
+    assert col_width(header.locator(".col-kind")) < w + 60
+    assert header.locator(".col-kind .col-grip").count() == 0  # the last edge has nothing to its right
+
+
 def test_file_server_here(app, fixture_dir):
     item(app, fixture_dir / "sub").click(button="right")
     app.locator(".menu-item", has_text="File Server Here…").click()
@@ -766,3 +798,22 @@ def test_disk_usage_page(ctx, server, app, tmp_path):
     expect(page.locator("#name")).to_have_text("big dir")
     page.keyboard.press("Backspace")
     expect(page.locator("#name")).to_have_text("du root")
+
+    # a folder's "smaller files" row opens into the files themselves, which can be archived
+    small = page.locator(f'.du-list .row[data-path="{root / "small"}"]')
+    small.locator(".disclosure").click()
+    rest = page.locator(".du-list .row.extra", has_text="1 smaller file")
+    rest.locator(".disclosure").click()
+    x = page.locator(f'.du-list .row[data-path="{root / "small" / "x.txt"}"]')
+    expect(x).to_be_visible()
+    x.click()
+    page.keyboard.press("Delete")
+    expect(x).to_have_count(0)
+    expect(rest).to_have_count(0)
+    page.keyboard.press("Control+z")
+    expect(x).to_be_visible()
+
+    items = page.locator(".du-list .list-header .col-items")
+    w = col_width(items)
+    drag_by(page, page.locator(".du-list .list-header .col-size .col-grip"), -40)
+    assert abs(col_width(items) - (w + 40)) <= 2

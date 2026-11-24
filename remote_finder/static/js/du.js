@@ -4,7 +4,7 @@ import { ApiError, duUrl, folderUrl, get, pageQuery, post, viewerUrl } from "./a
 import { promptDialog, toast, toastError } from "./dialogs.js";
 import { Archive } from "./du/archive.js";
 import { Chart, Colors, labelOf, sizeOf } from "./du/charts.js";
-import { TreeList } from "./du/tree.js";
+import { TreeList, keyOf } from "./du/tree.js";
 import { closeMenu, showMenu } from "./menu.js";
 import { copyPath } from "./pathbar.js";
 import { $, K, ancestors, basename, copyText, dirname, fmtSize, h, isInside, mod, openTab, store } from "./util.js";
@@ -19,7 +19,8 @@ const S = {
   metric: store.get("du.metric", "disk"),
   depth: store.get("du.depth", 4),
   kind: store.get("du.chart", "rings"),
-  expanded: new Set(),
+  expanded: new Set(),  // folder paths, and "rest:<folder>" for opened "smaller files" rows
+  small: new Map(),     // folder -> its smaller files, listed when its row was opened
   selected: new Set(),
   anchor: null,        // row index for Shift ranges
   chartTree: null,
@@ -51,9 +52,39 @@ const chart = new Chart($("#stage"), colors, {
 
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { colors.theme(); draw(); });
 
-const archive = new Archive($("#archive"), { root, metric: S.metric, onChange: () => { syncButtons(); refresh(); } });
+const archive = new Archive($("#archive"), { root, metric: S.metric, onChange: () => { syncButtons(); reloadSmall(); refresh(); } });
+
+/** The scan only keeps a total for each folder's small files; an opened row lists them from disk. */
+async function loadSmall(dir) {
+  if (S.small.has(dir)) return;
+  S.small.set(dir, null);  // loading
+  try {
+    const r = await get(`/api/du/scans/${S.scan.id}/small`, { path: dir, metric: S.metric });
+    if (S.small.get(dir) === null) S.small.set(dir, r.children);
+  } catch (e) {
+    S.small.delete(dir);
+    S.expanded.delete(`rest:${dir}`);
+    toastError(e);
+  }
+  draw();
+}
+
+/** List the opened rows again (after archiving, a rescan or a metric change). */
+function reloadSmall() {
+  S.small.clear();
+  draw();
+}
+
+/** Hang the listed small files under their opened rows; snapshots arrive without them. */
+function graftSmall(d) {
+  if (d?.kind === "rest" && S.expanded.has(keyOf(d))) {
+    if (!S.small.has(d.dir)) loadSmall(d.dir);
+    d.children = S.small.get(d.dir) || [{ kind: "loading", name: "", path: null }];
+  } else d?.children?.forEach(graftSmall);
+}
 
 function draw() {
+  graftSmall(S.listTree);
   chart.render(S.chartTree, { kind: S.kind, metric: S.metric, depth: S.depth, selected: S.selected });
   list.render(S.listTree, { metric: S.metric, expanded: S.expanded, selected: S.selected, colors: chart.colorMap });
   drawHeader();
@@ -143,7 +174,7 @@ async function refresh() {
     const base = { path: S.focus, metric: S.metric };
     const [c, l] = await Promise.all([
       get(`/api/du/scans/${S.scan.id}/tree`, { ...base, depth: S.depth, min: 0.002 }),
-      get(`/api/du/scans/${S.scan.id}/tree`, { ...base, depth: 1, min: 0, limit: 2000, expand: [...S.expanded] }),
+      get(`/api/du/scans/${S.scan.id}/tree`, { ...base, depth: 1, min: 0, limit: 2000, expand: [...S.expanded].filter((k) => k.startsWith("/")) }),
     ]);
     // colors follow size order; they stay put while sizes change, and are dealt again once final
     if (S.scan.running && !l.status.running) colors.reset();
@@ -190,11 +221,13 @@ function zoomOut() {
 function open(d) {
   if (d.kind === "dir" && d.path !== S.focus && d.state !== "mount" && d.state !== "skipped") zoom(d.path);
   else if (d.kind === "file") openTab(viewerUrl(d.path));
+  else if (d.kind === "rest") toggle(d);
 }
 
 function toggle(d) {
-  if (S.expanded.has(d.path)) S.expanded.delete(d.path);
-  else S.expanded.add(d.path);
+  const key = keyOf(d);
+  if (S.expanded.has(key)) S.expanded.delete(key);
+  else S.expanded.add(key);
   draw();
   refresh();
 }
@@ -262,6 +295,7 @@ async function include(d) {
 async function rescan(path) {
   try {
     S.scan = { ...S.scan, ...(await post(`/api/du/scans/${S.scan.id}/rescan`, { path })) };
+    S.small.clear();
     refresh();
   } catch (e) { toastError(e); }
 }
@@ -327,6 +361,7 @@ $("#metric").addEventListener("click", (e) => {
   colors.reset();
   store.set("du.metric", m);
   archive.render();
+  S.small.clear();
   refresh();
 });
 

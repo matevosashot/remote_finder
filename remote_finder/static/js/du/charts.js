@@ -41,8 +41,9 @@ export const inkOn = (color) => (d3.lab(color).l > 62 ? "#1d1d1f" : "#ffffff");
 export const sizeOf = (d, metric) => Math.max(0, d[metric] || 0);
 
 export function labelOf(d) {
-  if (d.kind === "rest") return `${d.count.toLocaleString()} smaller files`;
-  if (d.kind === "others") return `${d.count.toLocaleString()} more items`;
+  if (d.kind === "rest") return d.count === 1 ? "1 smaller file" : `${d.count.toLocaleString()} smaller files`;
+  if (d.kind === "others") return d.count === 1 ? "1 more item" : `${d.count.toLocaleString()} more items`;
+  if (d.kind === "loading") return "Loading…";
   return d.name;
 }
 

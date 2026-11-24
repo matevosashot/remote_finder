@@ -14,6 +14,7 @@ import itertools
 import json
 import marshal
 import os
+import stat
 import subprocess
 import sys
 import threading
@@ -36,6 +37,7 @@ MAX_SCANS = 3
 IDLE_DROP = 30 * 60     # forget scans nobody looked at for this long
 MAX_CHILDREN = 2000     # per folder in one snapshot; the rest is merged into "others"
 NO_REST = (0, 0, 0)
+SMALL_LIMIT = 1000      # files listed when a "smaller files" row is opened; the rest is one "more items" row
 
 
 class _Worker:
@@ -401,31 +403,51 @@ def outermost(paths) -> list[str]:
     return out
 
 
-def _archived_minus(scan: Scan, paths: list[str]) -> tuple[set[str], dict[int, list[int]]]:
-    """Which archived paths fall in this scan, and how much to take off each ancestor folder."""
+def _archived_minus(scan: Scan, paths: list[str]) -> tuple[set[str], dict[int, list[int]], dict[int, list[int]]]:
+    """Which archived paths fall in this scan, how much to take off each ancestor folder, and how much
+    off each folder's smaller-files bucket (count, apparent, disk)."""
     hidden: set[str] = set()
     minus: dict[int, list[int]] = {}
+    rest_minus: dict[int, list[int]] = {}
     for p in outermost(paths):
         if not is_within(p, scan.root) or p == scan.root:
             continue
         node = scan.find(p)
+        count_self = (0, 0, 0, 0, 0)
         if node is not None:
             size = (node.apparent, node.disk, node.nfiles, node.ndirs, node.pending)
             parent = node.parent
             count_self = (0, 0, 0, 1, 0)
-        else:
-            hit = scan.find_file(p)
-            if not hit:
-                continue
+        elif hit := scan.find_file(p):
             parent, f = hit
             size = (f[1], f[2], 1, 0, 0)
-            count_self = (0, 0, 0, 0, 0)
+        else:  # one of a folder's smaller files: only its folder's total knows it
+            parent = scan.find(os.path.dirname(p))
+            st = _small_stat(scan, parent, p)
+            if st is None:
+                continue
+            size = (st[0], st[1], 1, 0, 0)
+            r = rest_minus.setdefault(id(parent), [0, 0, 0])
+            r[0], r[1], r[2] = r[0] + 1, r[1] + st[0], r[2] + st[1]
         hidden.add(p)
         for n in parent.chain():
             m = minus.setdefault(id(n), [0, 0, 0, 0, 0])
             for i in range(5):
                 m[i] += size[i] + count_self[i]
-    return hidden, minus
+    return hidden, minus, rest_minus
+
+
+def _small_stat(scan: Scan, parent: Node | None, path: str) -> tuple[int, int] | None:
+    """(apparent, disk) of a file counted in `parent`'s smaller-files bucket, or None if it isn't one."""
+    if parent is None or parent.state != "done" or not parent.rest[0]:
+        return None
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return None
+    if stat.S_ISDIR(st.st_mode) or (st.st_nlink > 1 and scan.seen.get((st.st_dev, st.st_ino)) is not parent):
+        return None
+    return st.st_size, st.st_blocks * 512
 
 
 # ---------------------------------------------------------------- snapshot
@@ -433,7 +455,7 @@ def _archived_minus(scan: Scan, paths: list[str]) -> tuple[set[str], dict[int, l
 def _snapshot(scan: Scan, path: str, depth: int, metric: str, min_frac: float, expand: set[str],
               limit: int) -> dict | None:
     archived = [i["path"] for i in load_archive()]
-    hidden, minus = _archived_minus(scan, archived)
+    hidden, minus, rest_minus = _archived_minus(scan, archived)
     idx = 1 if metric == "apparent" else 2   # position in file tuples and the rest bucket
     tdx = idx - 1                             # position in totals()
     focus = scan.find(path)
@@ -468,8 +490,11 @@ def _snapshot(scan: Scan, path: str, depth: int, metric: str, min_frac: float, e
             if fp in hidden:
                 continue
             items.append((f[idx], ("file", f, fp)))
-        if n.rest[0]:
-            items.append((n.rest[idx], ("rest", n.rest, None)))
+        rest = n.rest
+        if id(n) in rest_minus:
+            rest = tuple(a - b for a, b in zip(rest, rest_minus[id(n)]))
+        if rest[0] > 0:
+            items.append((rest[idx], ("rest", rest, p)))
         items.sort(key=lambda t: t[0], reverse=True)
         out: list[dict] = []
         others = {"name": "", "kind": "others", "path": None, "apparent": 0, "disk": 0, "files": 0, "count": 0}
@@ -493,7 +518,7 @@ def _snapshot(scan: Scan, path: str, depth: int, metric: str, min_frac: float, e
                             "files": 1, "mtime": obj[3]})
             else:
                 out.append({"name": "", "path": None, "kind": "rest", "count": obj[0], "apparent": obj[1],
-                            "disk": obj[2], "files": obj[0]})
+                            "disk": obj[2], "files": obj[0], "dir": cp, "expandable": True})
         if others["count"]:
             out.append(others)
         return out
@@ -543,6 +568,46 @@ def tree(sid: str, path: str = Query(None), depth: int = Query(4, ge=0, le=12),
         snap = _snapshot(scan, path, depth, metric, min, set(expand), limit)
         status = scan.status()
     return {"status": status, "tree": snap}
+
+
+@router.get("/scans/{sid}/small")
+def small_files(sid: str, path: str, metric: str = Query("disk", pattern="^(disk|apparent)$"),
+                limit: int = Query(SMALL_LIMIT, ge=1, le=20000)) -> dict:
+    """List the files a folder's "smaller files" row stands for, biggest first; the scan only kept their total."""
+    scan = _get(sid)
+    path = norm(path)
+    with scan.lock:
+        node = scan.find(path)
+        if node is None or node.state != "done":
+            raise HTTPException(404, "folder not scanned")
+        big = {f[0] for f in node.files}
+    archived = {i["path"] for i in load_archive()}
+    files = []
+    try:
+        with os.scandir(path) as it:
+            for de in it:
+                full = os.path.join(path, de.name)
+                if de.name in big or full in archived:
+                    continue
+                try:
+                    st = de.stat(follow_symlinks=False)
+                except OSError:
+                    continue
+                if stat.S_ISDIR(st.st_mode):
+                    continue
+                if st.st_nlink > 1 and not stat.S_ISLNK(st.st_mode) and scan.seen.get((st.st_dev, st.st_ino)) is not node:
+                    continue  # a hardlink counted in another folder
+                files.append({"name": de.name, "path": full, "kind": "file", "apparent": st.st_size,
+                              "disk": st.st_blocks * 512, "files": 1, "mtime": st.st_mtime})
+    except OSError as e:
+        raise HTTPException(400, f"can't list {path}: {e.strerror}") from e
+    files.sort(key=lambda f: f[metric], reverse=True)
+    children = files[:limit]
+    if len(files) > limit:
+        more = files[limit:]
+        children.append({"name": "", "path": None, "kind": "others", "count": len(more), "files": len(more),
+                         "apparent": sum(f["apparent"] for f in more), "disk": sum(f["disk"] for f in more)})
+    return {"children": children}
 
 
 @router.post("/scans/{sid}/rescan")

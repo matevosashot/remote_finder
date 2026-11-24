@@ -17,10 +17,10 @@
 /* tree list */
 .du-list .list-scroll { flex: 1; overflow: auto; position: relative; }
 .du-list .col-name { flex: 1 1 260px; min-width: 150px; }
-.du-list .col-size { flex: 0 0 150px; }
+.du-list .col-size { flex: 0 0 var(--col-size, 150px); }
 .du-list .row .col-size { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
-.du-list .col-items { flex: 0 0 104px; text-align: right; }
-.du-list .col-mtime { flex: 0 0 96px; text-align: right; }
+.du-list .col-items { flex: 0 0 var(--col-items, 104px); text-align: right; }
+.du-list .col-mtime { flex: 0 0 var(--col-mtime, 96px); text-align: right; }
 .du-list .row .col-items { color: var(--muted); }
 .du-list .row.root .name { font-weight: 600; }
 .du-list .row.extra .name { color: var(--muted); font-style: italic; }

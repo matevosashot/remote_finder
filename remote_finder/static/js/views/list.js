@@ -6,6 +6,7 @@ import { state } from "../state.js";
 import { dirname, fmtDate, fmtSize, h, kindLabel, mod } from "../util.js";
 import { VirtualList } from "../virtual.js";
 import { ICONS } from "../icons.js";
+import { ColumnWidths } from "../colresize.js";
 import { bindBand, iconEl, itemAttrs, itemClasses } from "./common.js";
 
 const ROW = 24;
@@ -18,6 +19,7 @@ export class ListView {
     this.header = h("div", { class: "list-header" });
     this.scroller = h("div", { class: "list-scroll view-bg", tabindex: "-1" });
     root.append(this.header, this.scroller);
+    this.widths = new ColumnWidths(root, "columns.list");
     this.vl = new VirtualList(this.scroller, { rowHeight: ROW, count: 0, renderRow: (i) => this.row(i) });
     this.scroller.addEventListener("click", (e) => {
       const tri = e.target.closest(".disclosure");
@@ -53,6 +55,7 @@ export class ListView {
       onclick: () => key !== "where" && sortBy(key),
     }, key === "size" ? this.sizesButton() : null, label,
     state.sort.key === key ? h("span", { class: "sort-arrow" }, state.sort.dir > 0 ? "▲" : "▼") : null)));
+    this.widths.decorate(this.header, this.columns().map(([key]) => key));
     this.root.classList.toggle("searching", !!state.search);
   }
 
@@ -132,5 +135,5 @@ export class ListView {
   }
 
   bgPathAt() { return state.search ? null : state.path; }
-  destroy() { this.vl.destroy(); this.root.replaceChildren(); }
+  destroy() { this.vl.destroy(); this.widths.detach(); this.root.replaceChildren(); }
 }

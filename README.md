@@ -12,8 +12,8 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 
 ## Features
 
-- **Finder views:** Icons (with a size slider and image thumbnails), List (sortable columns,
-  folders expand inline and stay expanded across reloads; Expand/Collapse All on the background
+- **Finder views:** Icons (with a size slider and image thumbnails), List (sortable, resizable
+  columns: drag a header edge, double-click it to fit; folders expand inline and stay expanded across reloads; Expand/Collapse All on the background
   menu), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay fast because every
   view is virtualized.
 - **Folder sizes in list view:** the button in the Size column header calculates every listed
@@ -42,7 +42,8 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
   files open instantly; line jumps and grep scan the file once (line positions are cached).
 - **Disk usage:** a graphical `du` for any folder (right-click › Analyze Disk Usage…). Rings or
   treemap next to a sortable tree with Size / Contents / Modified, filled in live while the scan runs
-  and refined as it goes deeper. It counts like `du -x` (disk usage or apparent size, hardlinks
+  and refined as it goes deeper. Each folder's small files are one "N smaller files" row that opens
+  into the files themselves (listed from disk when opened, so the scan stays small). It counts like `du -x` (disk usage or apparent size, hardlinks
   once, one filesystem) and lists folders in parallel worker processes, so it usually finishes
   sooner than `du` itself. Nothing is ever deleted: **Archive** (Delete key, with undo) hides an
   item and subtracts its size, and the archive list gives you a ready-made `rm` command to review
