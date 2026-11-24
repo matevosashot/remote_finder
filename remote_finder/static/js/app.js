@@ -1,17 +1,19 @@
 // App shell: toolbar, breadcrumbs, view switching, preview pane, status bar, bootstrap.
 import * as A from "./actions.js";
 import { get } from "./api.js";
+import { modal } from "./dialogs.js";
 import { backgroundMenu, crumbMenu, itemMenu } from "./contextmenu.js";
 import { ICONS } from "./icons.js";
 import { goToPath, initKeyboard } from "./keyboard.js";
-import { exitSearch, goBack, goForward, loadMore, navigate, pageSize, pathFromHash, rebuildItems, startSearch, stopLoading, syncListing } from "./nav.js";
+import { exitSearch, goBack, goForward, loadMore, navigate, pageSize, pathFromHash, rebuildItems, screenful, startSearch, stopLoading, syncListing } from "./nav.js";
 import { renderPreview } from "./preview.js";
 import { bindDropTarget, bindItems } from "./selection.js";
-import { loadSettings, setOption } from "./settings.js";
+import { loadSettings, saveSettingsNow, setOption } from "./settings.js";
 import { initSidebar } from "./sidebar.js";
 import { emit, on, selectedEntries, state } from "./state.js";
 import { initTerminal, toggleTerminal } from "./terminal.js";
 import { K, ancestors, basename, fmtSize, h, isInside } from "./util.js";
+import { moreControls } from "./views/common.js";
 import { ColumnsView } from "./views/columns.js";
 import { GalleryView } from "./views/gallery.js";
 import { IconsView } from "./views/icons.js";
@@ -56,7 +58,8 @@ function buildShell() {
   el.workspace = h("div", { class: "workspace dock-bottom" }, el.content);
   el.statusL = h("span", {});
   el.statusR = h("span", {});
-  const status = h("footer", { class: "statusbar" }, el.statusL, h("div", { class: "spacer" }), el.statusR);
+  const gear = h("button", { class: "status-gear", title: "Settings", html: ICONS.gear, onclick: settingsDialog });
+  const status = h("footer", { class: "statusbar" }, gear, el.statusL, h("div", { class: "spacer" }), el.statusR);
   document.body.append(h("div", { class: "app" }, toolbar, h("div", { class: "main-area" }, el.sidebar, el.workspace), status));
 }
 
@@ -140,15 +143,40 @@ function updateMore() {
   if (p?.loading && performance.now() - p.since < 400) { moreTimer = setTimeout(updateMore, 420); return; }
   const show = l && !state.search && (p.loading || !l.complete);
   el.more.hidden = !show;
-  if (!show) return;
-  const n = (x) => x.toLocaleString();
-  const text = !p.loading ? `Showing ${n(l.next)} of ${n(l.total)}${l.provisional ? `, the best of the first ${n(l.read)} read` : ""}`
-    : p.read ? `Reading ${n(Math.min(p.read, p.total))} of ${n(p.total)} to sort them…`
-      : `Loading ${n(p.next)} of ${n(p.total)}…`;
-  el.more.replaceChildren(h("span", { class: "more-text" }, text), ...(p.loading
-    ? [h("button", { class: "btn small", onclick: stopLoading }, "Stop")]
-    : [h("button", { class: "btn small", onclick: () => loadMore(false) }, `Show ${n(Math.min(pageSize(), l.total - l.next))} More`),
-      h("button", { class: "btn small", onclick: () => loadMore(true) }, `Show All ${n(l.total)}`)]));
+  if (show) el.more.replaceChildren(...moreControls(l, p, pageSize(), { more: () => loadMore(false), all: () => loadMore(true), stop: stopLoading }));
+}
+
+/** Bottom-left gear: how big folders load. */
+async function settingsDialog() {
+  const fits = screenful();
+  const num = (value, auto) => h("input", { class: "text set-num", type: "number", min: 1, step: 1, value: value ?? "", placeholder: `Auto: ${auto}` });
+  const out = await modal((close) => {
+    const parts = h("input", { type: "radio", name: "set-load", checked: !state.loadAll });
+    const all = h("input", { type: "radio", name: "set-load", checked: state.loadAll });
+    const page = num(state.pageFiles, `${Math.max(50, 4 * fits)}, 4 screens`);
+    const sub = num(state.subPageFiles, `${Math.max(10, Math.ceil(fits / 2))}, half a screen`);
+    const sync = () => { page.disabled = sub.disabled = all.checked; };
+    parts.onchange = all.onchange = sync;
+    sync();
+    const count = (input) => (input.value.trim() ? Math.max(1, Math.round(Number(input.value))) || null : null);
+    return [
+      h("h3", {}, "Settings"),
+      h("div", { class: "set-group" }, h("div", { class: "set-title" }, "Big folders"),
+        h("label", { class: "check" }, parts, "Load a part at a time, with Show More and Show All"),
+        h("label", { class: "check" }, all, "Load everything at once (the list grows as files arrive)"),
+        h("table", { class: "info-table set-table" },
+          h("tr", {}, h("th", {}, "Files per part of a folder"), h("td", {}, page)),
+          h("tr", {}, h("th", {}, "Files per part of an expanded folder"), h("td", {}, sub))),
+        h("p", { class: "muted set-note" }, "Leave a number empty to follow the window size. A new sort loads the whole folder, growing as it arrives.")),
+      h("div", { class: "dialog-buttons" },
+        h("button", { class: "btn", onclick: () => close(null) }, "Cancel"),
+        h("button", { class: "btn primary", onclick: () => close({ loadAll: all.checked, pageFiles: count(page), subPageFiles: count(sub) }) }, "Save")),
+    ];
+  }, { onKey: (e, close) => { if (e.key === "Enter" && e.target.tagName === "INPUT") e.target.closest(".dialog").querySelector(".btn.primary").click(); } });
+  if (!out) return;
+  for (const [k, v] of Object.entries(out)) setOption(k, v);
+  saveSettingsNow();
+  if (out.loadAll) loadMore(true);  // the rest of this folder too
 }
 
 // ---------------------------------------------------------------- wiring

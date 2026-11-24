@@ -95,7 +95,7 @@ export function bindItems(root, handlers) {
   root.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     const el = e.target.closest("[data-path]");
-    if (!el || e.target.closest(".disclosure, input")) return;
+    if (!el || e.target.closest(".disclosure, input, button")) return;
     const path = el.dataset.path;
     if (handlers.select && handlers.select(path, e) === false) return;
     if (state.selection.has(path) && !e.shiftKey && !mod(e)) {

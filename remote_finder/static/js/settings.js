@@ -4,7 +4,7 @@ import { rebuildItems, syncListing } from "./nav.js";
 import { emit, state } from "./state.js";
 import { debounce } from "./util.js";
 
-const KEYS = ["view", "iconSize", "showHidden", "foldersFirst", "sort", "preview", "bookmarks"];
+const KEYS = ["view", "iconSize", "showHidden", "foldersFirst", "sort", "preview", "bookmarks", "loadAll", "pageFiles", "subPageFiles"];
 const AFFECTS_ITEMS = ["showHidden", "foldersFirst", "sort", "view"];
 
 export async function loadSettings() {
@@ -22,6 +22,9 @@ function flush(keepalive = false) {
 }
 const flushSoon = debounce(flush, 400);
 window.addEventListener("pagehide", () => flush(true));
+
+/** Save now (the settings dialog), not after the usual pause. */
+export const saveSettingsNow = () => { dirty = true; flush(); };
 
 export function saveSettings() {
   dirty = true;

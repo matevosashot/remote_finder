@@ -4,6 +4,23 @@ import { ICONS, iconFor } from "../icons.js";
 import { emit, state } from "../state.js";
 import { h, mod, thumbable } from "../util.js";
 
+/**
+ * The controls under a folder loaded a part at a time (the bar under the view, or a row under an expanded
+ * folder): how much is shown, Show More, Show All, and Stop while a load takes a while. `shown` is the
+ * listing on screen, `p` the one loading (a new sort may be fetched while the old rows show).
+ */
+export function moreControls(shown, p, page, { more, all, stop }) {
+  const n = (x) => x.toLocaleString();
+  const busy = p.loading && performance.now() - p.since > 400;
+  const text = !busy ? `Showing ${n(shown.next)} of ${n(shown.total)}${shown.provisional ? `, the best of the first ${n(shown.read)} read` : ""}`
+    : p.read ? `Reading ${n(Math.min(p.read, p.total))} of ${n(p.total)} to sort them…`
+      : `Loading ${n(p.next)} of ${n(p.total)}…`;
+  const btn = (label, onclick) => h("button", { class: "btn small", onclick: (e) => { e.stopPropagation(); onclick(); } }, label);
+  const left = shown.total - shown.next;
+  return [h("span", { class: "more-text" }, text), ...(busy ? [btn("Stop", stop)]
+    : [page && left > page ? btn(`Show ${n(page)} More`, more) : null, btn(`Show All ${n(shown.total)}`, all)])];
+}
+
 const queue = [];
 let active = 0;
 const MAX_ACTIVE = 6;

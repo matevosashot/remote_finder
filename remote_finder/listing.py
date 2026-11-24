@@ -105,10 +105,11 @@ def _remember(path: str, mtime_ns: str, entries: list[dict]) -> None:
 def list_stream(path: str = Query(...), sort: Literal["name", "mtime", "size", "kind"] = "name",
                 dir: int = Query(1, ge=-1, le=1), folders_first: bool = True, hidden: bool = False, q: str = "",
                 offset: int = Query(0, ge=0), limit: int | None = Query(None, ge=1),
-                include: list[str] = Query([]), reuse: bool = False) -> StreamingResponse:
+                include: list[str] = Query([]), provisional: int = Query(0, ge=0),
+                reuse: bool = False) -> StreamingResponse:
     """NDJSON: {head: {path, parent, mtime_ns, writable, total}}; then the sorted rows offset..offset+limit as
-    {entries: [...]} lines (while a sort waits for every stat: {progress: n} and, for a first page, the best
-    page so far as {provisional: [...]} now and then), then as {extra: [...]} the rows
+    {entries: [...]} lines (while a sort waits for every stat: {progress: n} and, from the top, the best
+    `provisional` rows so far (default: the page) as {provisional: [...]} now and then), then as {extra: [...]} the rows
     named in `include` that fell outside the page; finally {done: true, next, complete}, `next` being the
     offset to go on from. `reuse` accepts a recent full read of the folder."""
     path = norm(path)
@@ -125,6 +126,7 @@ def list_stream(path: str = Query(...), sort: Literal["name", "mtime", "size", "
         raise os_error(e)
     needle = q.casefold()
     end = offset + limit if limit else None
+    best = 0 if offset else provisional or limit or 0  # rows to show from the top while a slow sort reads
 
     def wanted(name: str) -> bool:
         return (hidden or not name.startswith(".")) and (not needle or needle in name.casefold())
@@ -174,11 +176,11 @@ def list_stream(path: str = Query(...), sort: Literal["name", "mtime", "size", "
                 if now - t > BATCH_SECONDS:
                     yield line({"progress": i + 1})
                     t = now
-                if not offset and limit and now - shown > PROVISIONAL_SECONDS:
-                    # a slow read: show the best first page among the rows read so far, refined as it goes
+                if best and now - shown > PROVISIONAL_SECONDS:
+                    # a slow read: show the best rows among those read so far, refined as it goes
                     part = [e for e in every if wanted(e["name"])]
                     sort_entries(part, sort, dir, folders_first)
-                    yield line({"provisional": part[:limit]})
+                    yield line({"provisional": part[:best]})
                     shown = time.monotonic()
             _remember(path, mtime_ns, every)
             rows = [e for e in every if wanted(e["name"])]

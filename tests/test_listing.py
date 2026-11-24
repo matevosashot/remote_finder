@@ -102,6 +102,10 @@ def test_a_slow_read_shows_the_best_page_so_far(client, folder, monkeypatch):
     pages = [[e["name"] for e in x["provisional"]] for x in r["lines"] if "provisional" in x]
     assert len(pages) == 253 and all(len(p) <= 3 for p in pages)  # one per row read, the best 3 so far
     assert pages[-1] == r["names"] == ["f250.txt", "f249.txt", "f248.txt"]  # then the real page
+    # reading everything (a new sort): the best rows so far, then all of them in order
+    r = stream(client, folder, sort="mtime", dir=-1, q="f", provisional=2)
+    pages = [[e["name"] for e in x["provisional"]] for x in r["lines"] if "provisional" in x]
+    assert pages[-1] == ["f250.txt", "f249.txt"] and len(r["names"]) == 250 and r["names"][:2] == pages[-1]
 
 
 def test_errors(client, folder):

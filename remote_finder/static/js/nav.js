@@ -37,21 +37,27 @@ export function rebuildItems() {
     const q = state.filter.toLowerCase();
     // a big listing the server sorted the way the view wants needs no sort here (100k names take seconds);
     // folder sizes the client calculated can reorder a size sort, so that one is always redone
-    const presorted = state.listing.entries.length > 2000 && state.listing.order === orderKey() && state.sort.key !== "size";
-    const add = (entries, dir, depth) => {
-      let list = decorate(entries, dir, depth).filter(visible);
+    const presorted = (l) => l.entries.length > 2000 && l.order === orderKey() && state.sort.key !== "size";
+    const add = (l, dir, depth) => {
+      let list = decorate(l.entries, dir, depth).filter(visible);
       if (q && depth === 0) list = list.filter((e) => e.name.toLowerCase().includes(q));
-      if (!(presorted && depth === 0)) list.sort(compare);
+      if (!presorted(l)) list.sort(compare);
       for (const e of list) {
         flat.push(e);
         if (e.kind === "dir" && state.view === "list" && state.expanded.has(e.path)) {
-          const kids = state.childCache.get(e.path);
-          if (kids) add(kids, e.path, depth + 1);
-          else flat.push({ path: e.path + "/\u0000loading", name: "Loading…", kind: "placeholder", depth: depth + 1 });
+          const kid = state.childCache.get(e.path);
+          if (!kid) flat.push({ path: e.path + "/\u0000loading", name: "Loading…", kind: "placeholder", depth: depth + 1 });
+          else {
+            add(kid, e.path, depth + 1);
+            // a big expanded folder ends with its own Show More / Show All row
+            if (!kid.complete && kid.next < kid.total) {
+              flat.push({ path: e.path + "/\u0000more", name: "", kind: "placeholder", more: kid, dir: e.path, depth: depth + 1 });
+            }
+          }
         }
       }
     };
-    add(state.listing.entries, state.path, 0);
+    add(state.listing, state.path, 0);
     items = flat;
   } else items = [];
   state.items = items;
@@ -64,6 +70,7 @@ export function rebuildItems() {
 let loadToken = 0;
 let loading = null; // folder of the latest navigate() still in flight
 let listCtl = null; // the folder listing request in flight (a page, more rows, a refresh)
+const childCtl = new Map(); // expanded folder -> its listing request in flight
 
 /** Abort the listing request in flight and get a signal for the next one. */
 function newListing() {
@@ -79,15 +86,19 @@ function rebuildSoon() {
   rebuildTimer ??= setTimeout(() => { rebuildTimer = null; rebuildItems(); }, 120);
 }
 
-/** How many rows to ask for at a time: twice what fits on screen, at least 100. */
-export function pageSize() {
+/** About how many items fit on screen in the current view. */
+export function screenful() {
   const host = document.querySelector(".view-host");
   const w = host?.clientWidth || 1000, ht = host?.clientHeight || 800;
-  let fits = 50;
-  if (state.view === "list" || state.view === "columns") fits = Math.ceil(ht / 22);
-  else if (state.view === "icons") fits = Math.max(1, Math.floor(w / (state.iconSize + 48))) * Math.ceil(ht / (state.iconSize + 56));
-  return Math.max(100, 2 * fits);
+  if (state.view === "list" || state.view === "columns") return Math.ceil(ht / 22);
+  if (state.view === "icons") return Math.max(1, Math.floor(w / (state.iconSize + 48))) * Math.ceil(ht / (state.iconSize + 56));
+  return 50;
 }
+
+/** Rows of a folder to load at first and per "Show More" (null: all at once). Settings, else 4 screens. */
+export const pageSize = () => (state.loadAll ? null : state.pageFiles || Math.max(50, 4 * screenful()));
+/** The same for an expanded folder in list view: half a screen. */
+export const subPageSize = () => (state.loadAll ? null : state.subPageFiles || Math.max(10, Math.ceil(screenful() / 2)));
 
 /**
  * Stream rows of a folder, sorted (and filtered) on the server like the view. A big folder comes a page at
@@ -99,6 +110,8 @@ function streamListing(path, { offset = 0, limit = null, include = [], q = state
   const done = streamNdjson("/api/list/stream", {
     path, sort: state.sort.key === "where" ? "name" : state.sort.key, dir: state.sort.dir, folders_first: state.foldersFirst,
     hidden: state.showHidden, q: q || null, offset: offset || null, limit, include, reuse: reuse ? 1 : null,
+    // reading everything for a slow sort: show the best screenfuls so far meanwhile
+    provisional: limit ? null : 4 * screenful(),
   }, { signal, onBatch: (msgs) => {
     for (const m of msgs) {
       if (m.head && into) l.total = m.head.total;
@@ -176,7 +189,7 @@ export async function navigate(path, opts = {}) {
   state.listing = listing;
   state.filter = "";
   state.expanded.clear();
-  state.childCache.clear();
+  dropChildren();
   const reopen = savedExpanded(listing.path);
   for (const p of reopen) state.expanded.add(p);
   state.selection = new Set(select);
@@ -206,7 +219,7 @@ export async function loadMore(all = false) {
   Object.assign(l, { loading: true, since: performance.now() });
   rebuildItems();
   try {
-    await streamListing(state.path, { offset: l.next, limit: all ? null : pageSize(), q: l.q, reuse: true, into: l,
+    await streamListing(state.path, { offset: l.next, limit: all ? null : pageSize() || null, q: l.q, reuse: true, into: l,
       signal: newListing() }, () => rebuildSoon());
   } catch (e) {
     if (!aborted(e)) toastError(e);
@@ -228,18 +241,19 @@ function covers(l) {
 
 let refetchTimer = null;
 const cancelRefetch = () => { clearTimeout(refetchTimer); refetchTimer = null; };
-function refetchSoon() {
+function refetchSoon(all) {
   cancelRefetch();
-  refetchTimer = setTimeout(refetch, 200);  // typing in the filter asks once
+  refetchTimer = setTimeout(() => refetch(all), 200);  // typing in the filter asks once
 }
 
-/** The top of the folder again for the current sort/filter; the old rows stay until new ones arrive. */
-async function refetch() {
+/** The folder again for the current sort/filter: all of it, growing as it arrives (a new sort), or its
+ * first page. The old rows stay until new ones arrive. */
+async function refetch(all = false) {
   refetchTimer = null;
   if (state.search || !state.listing) return;
   const token = loadToken, old = state.listing;
   try {
-    const l = await streamListing(state.path, { limit: pageSize(), reuse: true, signal: newListing() }, (l) => {
+    const l = await streamListing(state.path, { limit: all ? null : pageSize(), reuse: true, signal: newListing() }, (l) => {
       if (token !== loadToken) return;
       if (l.entries.length) state.listing = l;
       else old.pending = l;  // the bar shows its progress meanwhile
@@ -253,13 +267,19 @@ async function refetch() {
   if (token === loadToken) { rebuildItems(); emit("selection"); }
 }
 
-/** After the sort, hidden files or the filter changed: re-sort the loaded rows now, and if the folder
- * isn't all here (or is big and the sort changed), fetch the new top of it. */
+/** After the sort, hidden files or the filter changed. The loaded rows are re-sorted at once; a folder that
+ * isn't all here is fetched again: after a new sort all of it, growing as it arrives (the server sorts a big
+ * one faster than the browser), after a filter its first page. Expanded folders keep as many rows. */
 export function syncListing(sortChanged = false) {
   const l = state.listing;
   if (!l || state.search) return;
-  if (covers(l) && !(sortChanged && l.total > pageSize())) return;
-  refetchSoon();
+  if (sortChanged && (!covers(l) || l.entries.length > 2000)) refetchSoon(true);
+  else if (!covers(l)) refetchSoon(false);
+  for (const p of state.expanded) {
+    const k = state.childCache.get(p);
+    const stale = k && (k.complete ? !k.hidden && state.showHidden : k.order !== orderKey() || k.hidden !== state.showHidden);
+    if (stale) loadChild(p, { limit: k.complete ? null : Math.max(k.next, subPageSize() || 0) }).catch(() => {});
+  }
 }
 
 /** Up one level from where we are going, so a quick double Mod+Up climbs two levels. */
@@ -298,8 +318,13 @@ export async function refresh({ select } = {}) {
     if (token !== loadToken) return;
     state.listing = listing;
     for (const p of state.expanded) {
-      try { state.childCache.set(p, (await get("/api/list", { path: p })).entries); }
-      catch { state.expanded.delete(p); state.childCache.delete(p); }
+      const k = state.childCache.get(p);
+      loadChild(p, { limit: !k ? subPageSize() : k.complete ? null : Math.max(k.next, subPageSize() || 0) }).catch((e) => {
+        if (aborted(e)) return;
+        state.expanded.delete(p);
+        state.childCache.delete(p);
+        rebuildSoon();
+      });
     }
   } catch (e) {
     if (e.status === 404 || e.status === 403) return navigate(dirname(state.path), { push: false });
@@ -315,18 +340,65 @@ export async function refresh({ select } = {}) {
   emit("listing-refreshed");
 }
 
+/**
+ * Stream an expanded folder's rows into state.childCache: a page at a time like the folder itself (half
+ * a screen), or with `into` more rows appended to what it has.
+ */
+function loadChild(path, { limit = subPageSize(), into = null } = {}) {
+  childCtl.get(path)?.abort();
+  const ctl = new AbortController();
+  childCtl.set(path, ctl);
+  const token = loadToken;
+  const live = () => token === loadToken && state.expanded.has(path);
+  return streamListing(path, { offset: into?.next || 0, limit, q: "", into, signal: ctl.signal }, (l) => {
+    if (!live()) return;
+    if (l.entries.length || l.next >= l.total) state.childCache.set(path, l);  // no empty flash while it starts
+    rebuildSoon();
+  }).then((l) => {
+    if (live()) { state.childCache.set(path, l); rebuildSoon(); }
+    return l;
+  }).finally(() => { if (childCtl.get(path) === ctl) childCtl.delete(path); });
+}
+
+/** Forget the expanded folders' rows and stop their requests. */
+function dropChildren() {
+  for (const ctl of childCtl.values()) ctl.abort();
+  childCtl.clear();
+  state.childCache.clear();
+}
+
+/** Show More / Show All under an expanded folder. */
+export async function loadMoreChild(path, all = false) {
+  const l = state.childCache.get(path);
+  if (!l || l.complete || l.loading) return;
+  Object.assign(l, { loading: true, since: performance.now() });
+  rebuildItems();
+  try {
+    await loadChild(path, { into: l, limit: all ? null : subPageSize() || null });
+  } catch (e) {
+    if (!aborted(e)) toastError(e);
+  }
+  rebuildItems();
+}
+
+export const stopChild = (path) => childCtl.get(path)?.abort();
+
 export async function toggleExpand(path, open = !state.expanded.has(path)) {
   if (open) {
     state.expanded.add(path);
     rebuildItems();
     try {
-      state.childCache.set(path, (await get("/api/list", { path })).entries);
+      await loadChild(path);
     } catch (e) {
-      state.expanded.delete(path);
-      toastError(e);
+      if (!aborted(e)) {
+        state.expanded.delete(path);
+        toastError(e);
+      }
     }
   } else {
-    for (const p of [...state.expanded]) if (p === path || p.startsWith(path + "/")) state.expanded.delete(p);
+    for (const p of [...state.expanded]) {
+      if (p === path || p.startsWith(path + "/")) { state.expanded.delete(p); stopChild(p); }
+    }
   }
   saveExpanded();
   rebuildItems();
@@ -344,19 +416,18 @@ export async function expandAll() {
 
 export function collapseAll() {
   state.expanded.clear();
-  state.childCache.clear();
+  dropChildren();
   saveExpanded();
   rebuildItems();
   emit("selection");
 }
 
-/** Fetch the listings of expanded folders, a few at a time; folders that fail are collapsed. */
+/** Load expanded folders, a few at a time; folders that fail are collapsed. */
 async function loadChildren(paths, token) {
   for (let i = 0; i < paths.length; i += 16) {
     const batch = paths.slice(i, i + 16);
-    const lists = await Promise.all(batch.map((path) => get("/api/list", { path }).then((l) => l.entries, () => null)));
+    await Promise.all(batch.map((p) => loadChild(p).catch((e) => { if (!aborted(e)) state.expanded.delete(p); })));
     if (token !== loadToken) return;
-    batch.forEach((p, j) => (lists[j] ? state.childCache.set(p, lists[j]) : state.expanded.delete(p)));
     rebuildItems();
     emit("selection");
   }

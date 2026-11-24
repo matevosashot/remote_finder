@@ -20,6 +20,9 @@ export const state = {
   showHidden: false,
   foldersFirst: true,
   sort: { key: "name", dir: 1 },
+  loadAll: false,         // big folders: load everything at once instead of a part at a time
+  pageFiles: null,        // rows per part of a folder (null: 4 screens)
+  subPageFiles: null,     // rows per part of an expanded folder (null: half a screen)
   filter: "",
   search: null,           // {root, q, results: [], running} while searching
   preview: false,

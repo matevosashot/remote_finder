@@ -1,5 +1,5 @@
 // List view: sortable columns, disclosure triangles, virtualized rows.
-import { calcFolderSizes, toggleExpand } from "../nav.js";
+import { calcFolderSizes, loadMoreChild, stopChild, subPageSize, toggleExpand } from "../nav.js";
 import { focusIndex, indexOf, moveTo } from "../selection.js";
 import { sortBy } from "../settings.js";
 import { state } from "../state.js";
@@ -7,7 +7,7 @@ import { dirname, fmtDate, fmtSize, h, kindLabel, mod } from "../util.js";
 import { VirtualList } from "../virtual.js";
 import { ICONS } from "../icons.js";
 import { ColumnWidths } from "../colresize.js";
-import { bindBand, iconEl, itemAttrs, itemClasses } from "./common.js";
+import { bindBand, iconEl, itemAttrs, itemClasses, moreControls } from "./common.js";
 
 const ROW = 24;
 
@@ -28,7 +28,7 @@ export class ListView {
     // a band starts below the rows or on a row that isn't selected; a selected row drags instead
     bindBand(this.scroller, {
       canStart: (e) => {
-        if (e.target.closest(".disclosure")) return false;
+        if (e.target.closest(".disclosure, button")) return false;
         const row = e.target.closest("[data-path]");
         return !row || (!state.selection.has(row.dataset.path) && !mod(e) && !e.shiftKey);
       },
@@ -78,6 +78,15 @@ export class ListView {
     const e = state.items[i];
     const el = h("div", { class: `row ${i % 2 ? "odd" : ""} ${e.kind === "placeholder" ? "placeholder" : ""}`, ...itemAttrs(e) });
     const indent = { paddingLeft: `${6 + e.depth * 18}px` };
+    if (e.more) {
+      // the end of a big expanded folder loaded a part at a time
+      el.classList.add("more-row");
+      el.append(h("div", { class: "col col-name", style: indent }, h("span", { class: "disclosure none" }),
+        moreControls(e.more, e.more, subPageSize(), {
+          more: () => loadMoreChild(e.dir), all: () => loadMoreChild(e.dir, true), stop: () => stopChild(e.dir),
+        })));
+      return el;
+    }
     const tri = e.kind === "dir" && !state.search
       ? h("span", { class: `disclosure ${state.expanded.has(e.path) ? "open" : ""}` }, "")
       : h("span", { class: "disclosure none" });

@@ -208,33 +208,70 @@ def test_quicklook_plays_audio(app, server, tmp_path):
     assert app.evaluate("() => [...document.querySelectorAll('audio')].every(a => a.paused)")
 
 
-def test_big_folder_a_page_at_a_time(app, server, tmp_path):
+def set_loading(page, load_all=False, files="", sub_files=""):
+    """Bottom-left gear: how big folders load."""
+    page.locator(".status-gear").click()
+    dialog = page.locator(".dialog")
+    dialog.locator("input[name=set-load]").nth(1 if load_all else 0).check()
+    if not load_all:
+        dialog.locator(".set-num").nth(0).fill(str(files))
+        dialog.locator(".set-num").nth(1).fill(str(sub_files))
+    dialog.locator(".btn.primary", has_text="Save").click()
+    expect(dialog).to_have_count(0)
+
+
+def test_big_folder_a_part_at_a_time(app, server, tmp_path):
     for i in range(300):
         (tmp_path / f"n{i:03d}.txt").write_text("x" * i)
-    app.goto(f"{server}/#{tmp_path}")
+    (tmp_path / "deep").mkdir()
+    for i in range(40):
+        (tmp_path / "deep" / f"d{i:02d}.txt").write_text("d")
     bar = app.locator(".more-bar")
-    expect(bar).to_contain_text("of 300")
-    shown = int(re.search(r"Showing (\d+)", bar.inner_text())[1])
-    assert 100 <= shown < 300
-    expect(app.locator(".statusbar")).to_contain_text(f"{shown} of 300 items")
-    assert app.locator(f'[data-path="{tmp_path / "n299.txt"}"]').count() == 0
-    bar.locator("button", has_text="More").click()
-    expect(bar).to_contain_text(f"Showing {min(300, 2 * shown)} of 300")
-    bar.locator("button", has_text="Show All").click()
-    expect(bar).to_be_hidden()
-    expect(app.locator(".statusbar")).to_contain_text("300 items")
-    # a new sort shows the top of the folder again, sorted on the server
-    app.locator(".list-header .col-size").click()
-    expect(bar).to_contain_text(f"Showing {shown} of 300")
-    names = app.evaluate("() => [...document.querySelectorAll('.list-scroll .row .name')].slice(0, 2).map(e => e.textContent)")
-    assert names == ["n299.txt", "n298.txt"]  # biggest first
-    # the filter asks the server too, so it finds rows that weren't loaded
-    app.locator("input.search").fill("n29")
-    expect(app.locator(".statusbar")).to_contain_text("10 items matching")
-    expect(bar).to_be_hidden()
-    app.locator("input.search").fill("")
-    expect(bar).to_contain_text("of 300")
-    app.locator(".list-header .col-name").click()
+    try:
+        set_loading(app, files=100, sub_files=5)
+        app.goto(f"{server}/#{tmp_path}")
+        expect(bar).to_contain_text("Showing 100 of 301")
+        expect(app.locator(".statusbar")).to_contain_text("100 of 301 items")
+        assert app.locator(f'[data-path="{tmp_path / "n299.txt"}"]').count() == 0
+        bar.locator("button", has_text="Show 100 More").click()
+        expect(bar).to_contain_text("Showing 200 of 301")
+
+        # an expanded folder loads a part at a time too, with its own row of buttons
+        item(app, tmp_path / "deep").locator(".disclosure").click()
+        more = app.locator(".row.more-row")
+        expect(more).to_contain_text("Showing 5 of 40")
+        expect(item(app, tmp_path / "deep" / "d04.txt")).to_be_visible()
+        assert item(app, tmp_path / "deep" / "d05.txt").count() == 0
+        more.locator("button", has_text="Show 5 More").click()
+        expect(more).to_contain_text("Showing 10 of 40")
+        more.locator("button", has_text="Show All 40").click()
+        expect(more).to_have_count(0)
+        expect(item(app, tmp_path / "deep" / "d39.txt")).to_be_attached()
+        item(app, tmp_path / "deep").locator(".disclosure").click()
+
+        # a new sort loads the whole folder, growing as it arrives
+        app.locator(".list-header .col-size").click()
+        expect(bar).to_be_hidden()
+        expect(app.locator(".statusbar")).to_contain_text(re.compile(r"^301 items"))
+        names = app.evaluate("() => [...document.querySelectorAll('.list-scroll .row .name')].slice(0, 3).map(e => e.textContent)")
+        assert names == ["deep", "n299.txt", "n298.txt"]  # the folder first, then biggest first
+        app.locator("input.search").fill("n29")
+        expect(app.locator(".statusbar")).to_contain_text("10 items matching")
+        app.locator("input.search").fill("")
+        app.locator(".list-header .col-name").click()
+
+        # everything at once: the rest of this folder now, whole folders from then on
+        app.reload()
+        expect(bar).to_contain_text("Showing 100 of 301")
+        set_loading(app, load_all=True)
+        expect(app.locator(".statusbar")).to_contain_text(re.compile(r"^301 items"))
+        expect(bar).to_be_hidden()
+        app.reload()
+        expect(app.locator(".statusbar")).to_contain_text(re.compile(r"^301 items"))
+        expect(bar).to_be_hidden()
+    finally:
+        app.evaluate("""() => fetch('/api/settings', {method: 'PUT', headers: {'Content-Type': 'application/json', 'X-Remote-Finder': '1'},
+          body: JSON.stringify({loadAll: false, pageFiles: null, subPageFiles: null, sort: {key: 'name', dir: 1}})})""")
 
 
 def test_server_sort_follows_the_browser_collator(app):

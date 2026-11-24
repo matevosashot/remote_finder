@@ -15,10 +15,12 @@ through `ssh -L` (see [Security](#security-model)). The frontend has no build st
 - **Finder views:** Icons (with a size slider and image thumbnails), List (sortable, resizable
   columns: drag a header edge, double-click it to fit; folders expand inline and stay expanded across reloads; Expand/Collapse All on the background
   menu), Columns, and Gallery, plus a preview pane. Folders with 100k+ files stay fast: a big
-  folder opens with its first page (twice what fits on screen), sorted and filtered on the server,
-  with **Show More** / **Show All** under it. Sorted by name only that page is stat'ed, so even slow
-  network storage opens at once; other sorts show their best page so far while every file is read.
-  Every view is virtualized.
+  folder opens with its first part (4 screens), sorted and filtered on the server, with **Show More**
+  / **Show All** under it; an expanded folder in list view does the same with half a screen. Sorted
+  by name only those rows are stat'ed, so even slow network storage opens at once. A new sort loads
+  the whole folder, growing as it arrives (other sorts show their best rows so far while every file
+  is read). The gear at the bottom left switches to loading everything at once and sets the part
+  sizes. Every view is virtualized.
 - **Folder sizes in list view:** the button in the Size column header calculates every listed
   folder's size, several at once; when sorted by size, rows re-sort as each folder finishes.
 - **Selection like Finder:** click, Ctrl/⌘-click, Shift-click ranges, rubber band in icon and list
