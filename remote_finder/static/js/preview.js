@@ -68,8 +68,10 @@ async function fillBody(body, entry, mode, stale) {
     img.onerror = () => { if (img.src !== location.origin + url) img.src = url; };
     return body.append(img);
   }
-  if (cat === "video") return body.append(h("video", { class: "preview-media", src: url, controls: true, preload: "metadata" }));
-  if (cat === "audio") return body.append(bigIcon(entry), h("audio", { src: url, controls: true, preload: "metadata" }));
+  // Quick Look plays at once, like Finder's; leaving the item (or closing) removes the element, which stops it
+  const play = mode === "quicklook";
+  if (cat === "video") return body.append(h("video", { class: "preview-media", src: url, controls: true, preload: "metadata", autoplay: play }));
+  if (cat === "audio") return body.append(bigIcon(entry), h("audio", { src: url, controls: true, preload: "metadata", autoplay: play }));
   if (cat === "pdf") return body.append(h("iframe", { class: "preview-frame", src: url, title: entry.name }));
   if (cat === "archive") {
     const res = await get("/api/archive/list", { path: entry.path, limit: 300 }).catch(() => null);

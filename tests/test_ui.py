@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import wave
 import zipfile
 from urllib.parse import quote
 
@@ -86,7 +87,8 @@ def server(tmp_path_factory):
 @pytest.fixture(scope="module")
 def browser():
     with playwright_api.sync_playwright() as p:
-        b = p.chromium.launch(executable_path=CHROME, headless=True)
+        # no sound device here: without this Chrome waits ~3 s for one before any audio plays
+        b = p.chromium.launch(executable_path=CHROME, headless=True, args=["--disable-audio-output"])
         yield b
         b.close()
 
@@ -186,6 +188,24 @@ def test_menu_copy_path_and_quicklook(app, fixture_dir):
     app.keyboard.press(" ")
     expect(app.locator(".ql-overlay")).to_have_count(0)
 
+
+
+def test_quicklook_plays_audio(app, server, tmp_path):
+    with wave.open(str(tmp_path / "tone.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\0\1" * 8000 * 3)
+    app.goto(f"{server}/#{tmp_path}")
+    item(app, tmp_path / "tone.wav").click()
+    app.keyboard.press(" ")
+    audio = app.locator(".ql-overlay audio")
+    expect(audio).to_have_count(1)
+    wait_until(lambda: audio.evaluate("a => !a.paused && a.currentTime > 0"))
+    app.keyboard.press(" ")
+    expect(app.locator(".ql-overlay")).to_have_count(0)
+    # the preview pane doesn't start it by itself
+    assert app.evaluate("() => [...document.querySelectorAll('audio')].every(a => a.paused)")
 
 
 def test_go_to_path_takes_folders_and_files(app, ctx, fixture_dir):
